@@ -1,16 +1,9 @@
 html, body { height: 100%; margin: 0; }
 #map { height: 100vh; width: 100%; }
 
-.trainIconWrap, .trainLabelWrap {
-  background: transparent;
-  border: none;
-}
+.trainIconWrap, .trainLabelWrap { background: transparent; border: none; }
 
-.trainMarker {
-  width: 34px;
-  height: 34px;
-  transform-origin: 50% 50%;
-}
+.trainMarker { width: 34px; height: 34px; transform-origin: 50% 50%; }
 
 .trainLabel {
   transform: translate(-50%, -42px);
