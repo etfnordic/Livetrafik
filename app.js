@@ -1,13 +1,14 @@
-const map = L.map("map").setView([59.3293, 18.0686], 12);
+const API_URL = "https://metro.etfnordic.workers.dev";
 
+const map = L.map("map").setView([59.3293, 18.0686], 12);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: "&copy; OpenStreetMap"
 }).addTo(map);
 
-const markers = new Map(); // id -> {group,labelMarker,arrowMarker}
+const markers = new Map();
+let timer = null;
 
-// --- PIL-SVG (lik din) ---
 function arrowSvg(color) {
   return `
   <svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -16,21 +17,24 @@ function arrowSvg(color) {
   </svg>`;
 }
 
-function colorForLine(line) {
-  // Tillfällig logik: ändra när du vill
-  const n = Number(line);
-  if (n >= 10 && n < 20) return "#2F80ED"; // blå
-  if (n >= 20 && n < 30) return "#27AE60"; // grön
-  return "#EB5757"; // röd
+// Tillfällig färgning innan vi har “riktig linje” (14/17/…)
+function colorForRouteId(routeId) {
+  const s = String(routeId ?? "");
+  // enkel deterministic färg: röd/grön/blå baserat på sista siffran
+  const last = Number(s.replace(/\D/g, "").slice(-1));
+  if (!Number.isFinite(last)) return "#2F80ED";
+  if (last % 3 === 0) return "#EB5757"; // röd
+  if (last % 3 === 1) return "#27AE60"; // grön
+  return "#2F80ED"; // blå
 }
 
 function fmtSpeed(speedKmh) {
-  if (speedKmh == null || Number.isNaN(speedKmh)) return "";
+  if (speedKmh == null || Number.isNaN(speedKmh) || speedKmh < 0) return "";
   return ` • ${Math.round(speedKmh)} km/h`;
 }
 
-function makeArrowIcon(line, bearingDeg) {
-  const color = colorForLine(line);
+function makeArrowIcon(routeId, bearingDeg) {
+  const color = colorForRouteId(routeId);
   const html = `
     <div class="trainMarker" style="transform: rotate(${bearingDeg ?? 0}deg);">
       ${arrowSvg(color)}
@@ -40,25 +44,24 @@ function makeArrowIcon(line, bearingDeg) {
     className: "trainIconWrap",
     html,
     iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconAnchor: [17, 17]
   });
 }
 
-function makeLabelIcon(line, dest, speedKmh) {
-  const text = `${line} mot ${dest || "?"}${fmtSpeed(speedKmh)}`;
+function makeLabelIcon(routeId, speedKmh) {
+  const text = `${routeId ?? "?"}${fmtSpeed(speedKmh)}`;
   return L.divIcon({
     className: "trainLabelWrap",
     html: `<div class="trainLabel">${text}</div>`,
     iconSize: [1, 1],
-    iconAnchor: [0, 0],
+    iconAnchor: [0, 0]
   });
 }
 
 function upsertTrain(v) {
   const pos = [v.lat, v.lon];
-
-  const arrowIcon = makeArrowIcon(v.line, v.bearing);
-  const labelIcon = makeLabelIcon(v.line, v.dest, v.speedKmh);
+  const arrowIcon = makeArrowIcon(v.routeId, v.bearing);
+  const labelIcon = makeLabelIcon(v.routeId, v.speedKmh);
 
   if (!markers.has(v.id)) {
     const group = L.layerGroup();
@@ -79,19 +82,45 @@ function upsertTrain(v) {
   }
 }
 
-// --- Mock-data (Steg 2) ---
-function mockFetch() {
-  return [
-    { id:"t1", lat:59.334, lon:18.060, line:"14", dest:"Fruängen", speedKmh:48, bearing:190 },
-    { id:"t2", lat:59.343, lon:18.020, line:"17", dest:"Åkeshov",  speedKmh:31, bearing:320 },
-    { id:"t3", lat:59.310, lon:18.070, line:"19", dest:"Hagsätra", speedKmh:55, bearing:10  }
-  ];
+async function refreshLive() {
+  if (document.visibilityState !== "visible") return;
+
+  const res = await fetch(API_URL, { cache: "no-store" });
+  const data = await res.json();
+
+  const seen = new Set();
+  for (const v of data) {
+    if (!v?.id || v.lat == null || v.lon == null) continue;
+    seen.add(v.id);
+    upsertTrain(v);
+  }
+
+  // städa bort gamla fordon
+  for (const [id, m] of markers.entries()) {
+    if (!seen.has(id)) {
+      map.removeLayer(m.group);
+      markers.delete(id);
+    }
+  }
 }
 
-function refreshMock() {
-  const data = mockFetch();
-  for (const v of data) upsertTrain(v);
+function startPolling() {
+  stopPolling();
+  timer = setInterval(() => refreshLive().catch(console.error), 3000);
+}
+function stopPolling() {
+  if (timer) clearInterval(timer);
+  timer = null;
 }
 
-refreshMock();
-setInterval(refreshMock, 3000);
+startPolling();
+refreshLive().catch(console.error);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    startPolling();
+    refreshLive().catch(console.error);
+  } else {
+    stopPolling();
+  }
+});
