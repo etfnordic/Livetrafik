@@ -120,7 +120,7 @@ function makeArrowIcon(line, bearingDeg) {
   }
 
   // SVG-pilen pekar åt höger från början → -90 för GTFS (0=norr)
-  const rot = bearingDeg - 90;
+  const rot = bearingDeg + 90;
 
   const html = `
     <div class="trainMarker"
