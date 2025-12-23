@@ -32,11 +32,11 @@ html, body { height: 100%; margin: 0; }
 .trainLabel {
   display: inline-block;
   white-space: nowrap;
-  font-weight: 800;
-  font-size: 13px;
+  font-weight: 400;
+  font-size: 12px;
 
-  padding: 6px 12px;
-  border-radius: 12px;
+  padding: 4px 8px;
+  border-radius: 8px;
 
   color: #fff;
   border: 1px solid rgba(0,0,0,0.25);
