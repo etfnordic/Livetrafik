@@ -97,11 +97,12 @@ function makeArrowIcon(line, bearingDeg) {
  */
 function makeLabelIcon(line, speedKmh) {
   const text = `Linje ${line}${fmtSpeed(speedKmh)}`;
+
   return L.divIcon({
     className: "trainLabelWrap",
     html: `<div class="trainLabel">${text}</div>`,
-    iconSize: [1, 1],
-    iconAnchor: [0, 0]
+    iconSize: [120, 28],     // en fast "yta" så Leaflet placerar korrekt
+    iconAnchor: [60, 40]     // mitten X, och lite ovanför pilen
   });
 }
 
