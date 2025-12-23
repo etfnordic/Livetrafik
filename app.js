@@ -3,7 +3,7 @@ import { TRIP_TO_LINE } from "./data/trip_to_line.js";
 const API_URL = "https://metro.etfnordic.workers.dev"; // worker root (returnerar array)
 
 const map = L.map("map").setView([59.3293, 18.0686], 12);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
