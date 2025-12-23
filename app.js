@@ -147,9 +147,9 @@ function makeArrowIcon(line, bearingDeg) {
  * Bakgrund = linjens färg
  * Centrerad ovanför
  */
-function makeLabelIcon(line, speedKmh) {
-  const text = `${line}${fmtSpeed(speedKmh)}`;
+function makeLabelIcon(line, labelText, speedKmh) {
   const color = colorForLine(line);
+  const text = `${labelText}${fmtSpeed(speedKmh)}`;
 
   return L.divIcon({
     className: "trainLabelWrap",
@@ -158,7 +158,7 @@ function makeLabelIcon(line, speedKmh) {
         ${text}
       </div>
     `,
-    iconAnchor: [0, 0] // koordinaten är "fästpunkten"
+    iconAnchor: [0, 0]
   });
 }
 
@@ -171,13 +171,10 @@ function enrich(v) {
   const info = TRIP_TO_LINE[v.tripId];
   if (!info?.line) return null;
 
-  // Vill du filtrera hårt på typer (som dina GTFS route_type: 100/401/900)
-  if (info.type != null && ![100, 401, 900].includes(info.type)) return null;
-
   return {
     ...v,
-    line: String(info.line),
-    routeType: info.type ?? null
+    line: info.line,
+    headsign: info.headsign ?? null
   };
 }
 
@@ -231,7 +228,15 @@ function upsertTrain(v) {
   lastPos.set(v.id, { lat: v.lat, lon: v.lon, ts: v.ts ?? Date.now() });
 
   const arrowIcon = makeArrowIcon(v.line, Number.isFinite(bearing) ? bearing : NaN);
-  const labelIcon = makeLabelIcon(v.line, v.speedKmh);
+  const labelText = v.headsign
+    ? `${v.line} → ${v.headsign}`
+    : v.line;
+
+  const labelIcon = makeLabelIcon(
+    v.line,        // för färg
+    labelText,     // visningstext
+    v.speedKmh
+  );
 
   // ...resten av upsertTrain oförändrad
 
