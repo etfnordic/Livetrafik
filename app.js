@@ -152,20 +152,11 @@ function makeLabelIcon(line, speedKmh) {
   return L.divIcon({
     className: "trainLabelWrap",
     html: `
-      <div class="trainLabel" style="
-        background:${color};
-        color:#fff;
-        font-weight:700;
-        padding:6px 10px;
-        border-radius:999px;
-        border:2px solid rgba(0,0,0,.5);
-        box-shadow: 0 2px 6px rgba(0,0,0,.25);
-        white-space: nowrap;
-        display: inline-block;
-      ">${text}</div>
+      <div class="trainLabel trainLabelPos" style="background:${color};">
+        ${text}
+      </div>
     `,
-    iconSize: [180, 34],
-    iconAnchor: [90, 54] // centrerad + ovanför
+    iconAnchor: [0, 0] // koordinaten är "fästpunkten"
   });
 }
 
