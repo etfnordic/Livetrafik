@@ -1,6 +1,6 @@
 import { TRIP_TO_LINE } from "./data/trip_to_line.js";
 
-const API_URL = "https://metro.etfnordic.workers.dev";
+const API_URL = "https://metro.etfnordic.workers.dev"; // din worker root som returnerar array
 
 const map = L.map("map").setView([59.3293, 18.0686], 12);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -11,23 +11,54 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 const markers = new Map();
 let timer = null;
 
-function arrowSvg(color) {
-  return `
-  <svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <path d="M50 5 L10 95 L50 75 Z" fill="none" stroke="#111" stroke-width="6" stroke-linejoin="round"/>
-    <path d="M50 5 L50 75 L90 95 Z" fill="${color}" stroke="#111" stroke-width="6" stroke-linejoin="round"/>
-  </svg>`;
+/**
+ * Linjefärger enligt din specifikation.
+ * (Du kan byta hex om du vill finjustera nyanser.)
+ */
+function colorForLine(line) {
+  const l = String(line ?? "").toUpperCase().trim();
+
+  // Tunnelbana m.m.
+  if (l === "7") return "#6B7280";           // grå
+  if (l === "10" || l === "11") return "#2563EB"; // blå
+  if (l === "12") return "#D1D5DB";         // ljusgrå
+  if (l === "13" || l === "14") return "#DC2626"; // röd
+  if (l === "17" || l === "18" || l === "19") return "#16A34A"; // grön
+  if (l === "21") return "#7C4A1D";         // brun
+  if (l === "25" || l === "26") return "#14B8A6"; // turkos
+
+  // Roslagsbanan (inkl express)
+  if (l === "27" || l === "27S" || l === "28" || l === "28S" || l === "29")
+    return "#7C3AED"; // lila
+
+  // Tvärbana
+  if (l === "30" || l === "31") return "#F97316"; // orange
+
+  // Pendeltåg (inkl express)
+  if (l === "40" || l === "41" || l === "43" || l === "43X" || l === "48")
+    return "#EC4899"; // rosa
+
+  // fallback
+  return "#111827";
 }
 
-// Tillfällig färgning innan vi har “riktig linje” (14/17/…)
-function colorForRouteId(routeId) {
-  const s = String(routeId ?? "");
-  // enkel deterministic färg: röd/grön/blå baserat på sista siffran
-  const last = Number(s.replace(/\D/g, "").slice(-1));
-  if (!Number.isFinite(last)) return "#2F80ED";
-  if (last % 3 === 0) return "#EB5757"; // röd
-  if (last % 3 === 1) return "#27AE60"; // grön
-  return "#2F80ED"; // blå
+/**
+ * Fylld “pil”-SVG (enkel och tydlig).
+ * Roteras via wrapper-diven.
+ */
+function arrowSvg(fillColor) {
+  // En "pappersflygplan/pil"-form som syns bra även liten
+  return `
+    <svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M10 50 L92 10 L62 50 L92 90 Z"
+        fill="${fillColor}"
+        stroke="#111"
+        stroke-width="6"
+        stroke-linejoin="round"
+      />
+    </svg>
+  `;
 }
 
 function fmtSpeed(speedKmh) {
@@ -35,13 +66,24 @@ function fmtSpeed(speedKmh) {
   return ` • ${Math.round(speedKmh)} km/h`;
 }
 
-function makeArrowIcon(routeId, bearingDeg) {
-  const color = colorForRouteId(routeId);
+/**
+ * Gör Leaflet-icon för pilen.
+ * Bearing roteras i wrappern (grad).
+ */
+function makeArrowIcon(line, bearingDeg) {
+  const color = colorForLine(line);
+  const rot = Number.isFinite(bearingDeg) ? bearingDeg : 0;
+
   const html = `
-    <div class="trainMarker" style="transform: rotate(${bearingDeg ?? 0}deg);">
+    <div class="trainMarker" style="
+      transform: rotate(${rot}deg);
+      transform-origin: 17px 17px;
+      width:34px;height:34px;
+    ">
       ${arrowSvg(color)}
     </div>
   `;
+
   return L.divIcon({
     className: "trainIconWrap",
     html,
@@ -50,8 +92,11 @@ function makeArrowIcon(routeId, bearingDeg) {
   });
 }
 
-function makeLabelIcon(routeId, speedKmh) {
-  const text = `${routeId ?? "?"}${fmtSpeed(speedKmh)}`;
+/**
+ * Label ovanför pilen: "Linje 14 • 45 km/h"
+ */
+function makeLabelIcon(line, speedKmh) {
+  const text = `Linje ${line}${fmtSpeed(speedKmh)}`;
   return L.divIcon({
     className: "trainLabelWrap",
     html: `<div class="trainLabel">${text}</div>`,
@@ -60,15 +105,50 @@ function makeLabelIcon(routeId, speedKmh) {
   });
 }
 
+/**
+ * Enrich: koppla tripId -> line/type via TRIP_TO_LINE.
+ * Returnerar null om okänd (då visar vi inte fordonet).
+ */
+function enrich(v) {
+  if (!v?.tripId) return null;
+  const info = TRIP_TO_LINE[v.tripId];
+  if (!info?.line) return null;
+
+  // Om du vill vara extra hård: filtrera bara dessa typer
+  // (du kan ta bort detta om du redan har 100/401/900 i kartan)
+  if (info.type != null && ![100, 401, 900].includes(info.type)) return null;
+
+  return {
+    ...v,
+    line: String(info.line),
+    routeType: info.type ?? null
+  };
+}
+
+/**
+ * Skapa/uppdatera marker-grupp för ett fordon
+ */
 function upsertTrain(v) {
   const pos = [v.lat, v.lon];
-  const arrowIcon = makeArrowIcon(v.routeId, v.bearing);
-  const labelIcon = makeLabelIcon(v.routeId, v.speedKmh);
+
+  const arrowIcon = makeArrowIcon(v.line, v.bearing);
+  const labelIcon = makeLabelIcon(v.line, v.speedKmh);
 
   if (!markers.has(v.id)) {
     const group = L.layerGroup();
-    const labelMarker = L.marker(pos, { icon: labelIcon, interactive: false, zIndexOffset: 1000 });
-    const arrowMarker = L.marker(pos, { icon: arrowIcon, interactive: false, zIndexOffset: 500 });
+
+    // Label lite ovanför markören
+    const labelMarker = L.marker(pos, {
+      icon: labelIcon,
+      interactive: false,
+      zIndexOffset: 1000
+    });
+
+    const arrowMarker = L.marker(pos, {
+      icon: arrowIcon,
+      interactive: false,
+      zIndexOffset: 500
+    });
 
     group.addLayer(labelMarker);
     group.addLayer(arrowMarker);
@@ -88,11 +168,18 @@ async function refreshLive() {
   if (document.visibilityState !== "visible") return;
 
   const res = await fetch(API_URL, { cache: "no-store" });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+
   const data = await res.json();
 
   const seen = new Set();
-  for (const v of data) {
-    if (!v?.id || v.lat == null || v.lon == null) continue;
+
+  for (const raw of data) {
+    if (!raw?.id || raw.lat == null || raw.lon == null) continue;
+
+    const v = enrich(raw);
+    if (!v) continue; // okänd trip -> visas inte
+
     seen.add(v.id);
     upsertTrain(v);
   }
