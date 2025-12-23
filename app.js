@@ -143,10 +143,10 @@ function makeArrowIcon(line, bearingDeg) {
 }
 
 /**
- * Label ovanför pilen: "Linje 14 • 45 km/h"
+ * Label ovanför pilen: " 14 • 45 km/h"
  */
 function makeLabelIcon(line, speedKmh) {
-  const text = `Linje ${line}${fmtSpeed(speedKmh)}`;
+  const text = `${line}${fmtSpeed(speedKmh)}`;
   const color = colorForLine(line);
 
   return L.divIcon({
