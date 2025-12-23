@@ -226,6 +226,7 @@ async function refreshLive() {
     if (!seen.has(id)) {
       map.removeLayer(m.group);
       markers.delete(id);
+      lastPos.delete(id);
     }
   }
 }
