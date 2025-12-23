@@ -9,6 +9,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 const markers = new Map();
+const lastPos = new Map();
 let timer = null;
 
 /**
@@ -40,6 +41,22 @@ function colorForLine(line) {
 
   // fallback
   return "#111827";
+}
+
+function headingFromPoints(lat1, lon1, lat2, lon2) {
+  // Returnerar grader 0..360 (0 = norr, 90 = öst)
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
+
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δλ = toRad(lon2 - lon1);
+
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+  const θ = Math.atan2(y, x);
+  return (toDeg(θ) + 360) % 360;
 }
 
 /**
@@ -132,7 +149,26 @@ function enrich(v) {
 function upsertTrain(v) {
   const pos = [v.lat, v.lon];
 
-  const arrowIcon = makeArrowIcon(v.line, v.bearing);
+let bearing = Number.isFinite(v.bearing) ? v.bearing : null;
+
+// Om bearing saknas (eller alltid 0 på vissa fordon): räkna ut från rörelse
+const prev = lastPos.get(v.id);
+if ((bearing == null || bearing === 0) && prev && prev.lat != null && prev.lon != null) {
+  // kräver att den faktiskt flyttat sig lite, annars blir det brus
+  const moved =
+    Math.abs(v.lat - prev.lat) > 0.00002 || // ~2m
+    Math.abs(v.lon - prev.lon) > 0.00002;
+
+  if (moved) {
+    bearing = headingFromPoints(prev.lat, prev.lon, v.lat, v.lon);
+  }
+}
+
+// spara nuvarande som "förra" till nästa uppdatering
+lastPos.set(v.id, { lat: v.lat, lon: v.lon, ts: v.ts ?? Date.now() });
+
+const arrowIcon = makeArrowIcon(v.line, bearing);
+
   const labelIcon = makeLabelIcon(v.line, v.speedKmh);
 
   if (!markers.has(v.id)) {
