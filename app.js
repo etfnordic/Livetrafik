@@ -18,7 +18,7 @@ const bearingEstablished = new Map(); // boolean per train id
 let timer = null;
 
 /* ----------------------------
-   Hover/Pin label-state (NYTT)
+   Hover/Pin label-state
 ----------------------------- */
 let hoverTrainId = null;
 let hoverLabelMarker = null;
@@ -26,9 +26,22 @@ let hoverLabelMarker = null;
 let pinnedTrainId = null;
 let pinnedLabelMarker = null;
 
+// robust hover-state (för att garantera att labeln försvinner)
+let isPointerOverTrain = false;
+
 function buildLabelText(v) {
-  // behåll din "→"
   return v.headsign ? `${v.line} → ${v.headsign}` : v.line;
+}
+
+function hideHoverLabel(trainId) {
+  if (hoverTrainId !== trainId) return;
+  if (pinnedTrainId === trainId) return;
+
+  if (hoverLabelMarker) {
+    map.removeLayer(hoverLabelMarker);
+    hoverLabelMarker = null;
+  }
+  hoverTrainId = null;
 }
 
 function showHoverLabel(v, pos) {
@@ -42,7 +55,8 @@ function showHoverLabel(v, pos) {
 
   hoverTrainId = v.id;
 
-  const icon = makeLabelIcon(v.line, buildLabelText(v), v.speedKmh);
+  // hover label får "hover"-klass (svagare skugga i CSS)
+  const icon = makeLabelIcon(v.line, buildLabelText(v), v.speedKmh, false);
 
   if (!hoverLabelMarker) {
     hoverLabelMarker = L.marker(pos, {
@@ -57,14 +71,15 @@ function showHoverLabel(v, pos) {
 }
 
 function togglePinnedLabel(v, pos) {
-  // 1) Om det finns en hover-label: ta bort den (annars kan den bli kvar som "spöke")
+  // Ta bort hover-label direkt när vi klickar (så inga “spöken”/dubbla labels)
   if (hoverLabelMarker) {
     map.removeLayer(hoverLabelMarker);
     hoverLabelMarker = null;
     hoverTrainId = null;
   }
+  isPointerOverTrain = false;
 
-  // 2) Klick på samma tåg -> avpinna
+  // Klick på samma tåg -> avpinna
   if (pinnedTrainId === v.id) {
     if (pinnedLabelMarker) map.removeLayer(pinnedLabelMarker);
     pinnedLabelMarker = null;
@@ -72,33 +87,41 @@ function togglePinnedLabel(v, pos) {
     return;
   }
 
-  // 3) Ny pin -> ta bort gammal pin
+  // Ny pin -> ta bort gammal pin
   if (pinnedLabelMarker) map.removeLayer(pinnedLabelMarker);
 
-  const icon = makeLabelIcon(v.line, buildLabelText(v), v.speedKmh);
+  // pinned label får "pinned"-klass (starkare skugga i CSS)
+  const icon = makeLabelIcon(v.line, buildLabelText(v), v.speedKmh, true);
 
   pinnedTrainId = v.id;
   pinnedLabelMarker = L.marker(pos, {
     icon,
     interactive: false,
-    zIndexOffset: 2500
+    zIndexOffset: 2500,
   }).addTo(map);
 }
 
-// klick på kartbakgrund -> avpinna
+// klick på kartbakgrund -> avpinna + städa hover
 map.on("click", () => {
-  // ta bort pinnad label
   if (pinnedLabelMarker) {
     map.removeLayer(pinnedLabelMarker);
     pinnedLabelMarker = null;
     pinnedTrainId = null;
   }
 
-  // ta även bort ev. hover-label
   if (hoverLabelMarker) {
     map.removeLayer(hoverLabelMarker);
     hoverLabelMarker = null;
     hoverTrainId = null;
+  }
+
+  isPointerOverTrain = false;
+});
+
+// failsafe: om Leaflet/DOM missar mouseout så städar vi ändå
+map.on("mousemove", () => {
+  if (!isPointerOverTrain && hoverTrainId && hoverLabelMarker && pinnedTrainId !== hoverTrainId) {
+    hideHoverLabel(hoverTrainId);
   }
 });
 
@@ -111,31 +134,24 @@ function normalizeLine(rawLine) {
   return (m ? m[1] : s).replace(/\s+/g, "").toUpperCase();
 }
 
-/**
- * Linjefärger enligt din specifikation.
- */
 function colorForLine(line) {
   const l = normalizeLine(line);
 
-  // Tunnelbana / Spårväg m.m.
-  if (l === "7") return "#878C85"; // grå
-  if (l === "10" || l === "11") return "#0091D2"; // blå
-  if (l === "12") return "#738BA4"; // ljusgrå
-  if (l === "13" || l === "14") return "#E31F26"; // röd
-  if (l === "17" || l === "18" || l === "19") return "#00B259"; // grön
-  if (l === "21") return "#B76934"; // brun
-  if (l === "25" || l === "26") return "#21B6BA"; // turkos
+  if (l === "7") return "#878C85";
+  if (l === "10" || l === "11") return "#0091D2";
+  if (l === "12") return "#738BA4";
+  if (l === "13" || l === "14") return "#E31F26";
+  if (l === "17" || l === "18" || l === "19") return "#00B259";
+  if (l === "21") return "#B76934";
+  if (l === "25" || l === "26") return "#21B6BA";
 
-  // Roslagsbanan (inkl express)
   if (l === "27" || l === "27S" || l === "28" || l === "28S" || l === "29")
-    return "#A86DAE"; // lila
+    return "#A86DAE";
 
-  // Tvärbana
-  if (l === "30" || l === "31") return "#E08A32"; // orange
+  if (l === "30" || l === "31") return "#E08A32";
 
-  // Pendeltåg (inkl express)
   if (l === "40" || l === "41" || l === "43" || l === "43X" || l === "48")
-    return "#ED66A5"; // rosa
+    return "#ED66A5";
 
   return "#111827";
 }
@@ -155,9 +171,7 @@ function darkenHex(hex, amount = 0.5) {
     .toString(16)
     .padStart(2, "0")}${db.toString(16).padStart(2, "0")}`;
 }
-/**
- * Heading 0..360 (0=norr, 90=öst)
- */
+
 function headingFromPoints(lat1, lon1, lat2, lon2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const toDeg = (r) => (r * 180) / Math.PI;
@@ -175,9 +189,6 @@ function headingFromPoints(lat1, lon1, lat2, lon2) {
   return (toDeg(θ) + 360) % 360;
 }
 
-/**
- * Pil-SVG (fylld).
- */
 function arrowSvg(fillColor, strokeColor) {
   return `
     <svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -197,16 +208,10 @@ function fmtSpeed(speedKmh) {
   return ` • ${Math.round(speedKmh)} km/h`;
 }
 
-/**
- * Icon: cirkel (innan bearing) eller pil (när bearing finns).
- * Skugga via filter: drop-shadow.
- */
 function makeArrowIcon(line, bearingDeg) {
   const color = colorForLine(line);
   const stroke = darkenHex(color, 0.5);
 
-
-  // Ingen bearing => cirkel
   if (!Number.isFinite(bearingDeg)) {
     const html = `
       <div class="trainMarker" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
@@ -226,7 +231,6 @@ function makeArrowIcon(line, bearingDeg) {
     });
   }
 
-  // SVG-pilen pekar åt höger från början → -90 för GTFS (0=norr)
   const rot = bearingDeg + 90;
 
   const html = `
@@ -248,16 +252,22 @@ function makeArrowIcon(line, bearingDeg) {
 }
 
 /**
- * Label ovanför tåget
+ * Label ovanför tåget.
+ * pinned=false => hover-stil
+ * pinned=true  => pinnad-stil
  */
-function makeLabelIcon(line, labelText, speedKmh) {
+function makeLabelIcon(line, labelText, speedKmh, pinned = false) {
   const color = colorForLine(line);
   const text = `${labelText}${fmtSpeed(speedKmh)}`;
+
+  const cls = pinned
+    ? "trainLabel trainLabelPos trainLabelPinned"
+    : "trainLabel trainLabelPos trainLabelHover";
 
   return L.divIcon({
     className: "trainLabelWrap",
     html: `
-      <div class="trainLabel trainLabelPos" style="background:${color};">
+      <div class="${cls}" style="background:${color};">
         ${text}
       </div>
     `,
@@ -265,10 +275,6 @@ function makeLabelIcon(line, labelText, speedKmh) {
   });
 }
 
-/**
- * Enrich: koppla tripId -> line/headsign via TRIP_TO_LINE.
- * Returnerar null om okänd (då visar vi inte fordonet).
- */
 function enrich(v) {
   if (!v?.tripId) return null;
   const info = TRIP_TO_LINE[v.tripId];
@@ -281,11 +287,7 @@ function enrich(v) {
   };
 }
 
-/**
- * Skapa/uppdatera marker-grupp för ett fordon
- */
 function upsertTrain(v) {
-  // Normalisera linjen tidigt så allt (färg + label) matchar
   v.line = normalizeLine(v.line);
 
   const pos = [v.lat, v.lon];
@@ -293,13 +295,11 @@ function upsertTrain(v) {
   let bearing = null;
   let establishedNow = false;
 
-  // 1) Använd API-bearing om den är giltig och > 0
   if (Number.isFinite(v.bearing) && v.bearing > 0) {
     bearing = v.bearing;
     establishedNow = true;
   }
 
-  // 2) Annars: räkna ut från rörelse (senaste två positionerna)
   const prev = lastPos.get(v.id);
   if (bearing == null && prev && prev.lat != null && prev.lon != null) {
     const moved =
@@ -311,18 +311,15 @@ function upsertTrain(v) {
     }
   }
 
-  // Markera som etablerad om vi fick bearing nu
   if (establishedNow) {
     bearingEstablished.set(v.id, true);
     lastBearing.set(v.id, bearing);
   }
 
-  // 3) Efter att bearing väl är etablerad: återanvänd senast kända om vi inte får en ny
   if (bearing == null && bearingEstablished.get(v.id) === true && lastBearing.has(v.id)) {
     bearing = lastBearing.get(v.id);
   }
 
-  // Spara position till nästa uppdatering
   lastPos.set(v.id, { lat: v.lat, lon: v.lon, ts: v.ts ?? Date.now() });
 
   const arrowIcon = makeArrowIcon(v.line, Number.isFinite(bearing) ? bearing : NaN);
@@ -332,20 +329,22 @@ function upsertTrain(v) {
 
     const arrowMarker = L.marker(pos, {
       icon: arrowIcon,
-      interactive: true, // behövs för hover/click
+      interactive: true,
       zIndexOffset: 500,
     });
 
-    // Hover (desktop)
     arrowMarker.on("mouseover", () => {
+      isPointerOverTrain = true;
       const m = markers.get(v.id);
       if (m?.lastV) showHoverLabel(m.lastV, m.lastPos);
     });
-    arrowMarker.on("mouseout", () => hideHoverLabel(v.id));
 
-    // Click/tap (desktop + mobile)
+    arrowMarker.on("mouseout", () => {
+      isPointerOverTrain = false;
+      hideHoverLabel(v.id);
+    });
+
     arrowMarker.on("click", (e) => {
-      // stoppa att kartans click avpinnar direkt
       L.DomEvent.stopPropagation(e);
       const m = markers.get(v.id);
       if (m?.lastV) togglePinnedLabel(m.lastV, m.lastPos);
@@ -358,22 +357,21 @@ function upsertTrain(v) {
   } else {
     const m = markers.get(v.id);
 
-    // uppdatera cached data så hover/pin alltid visar rätt
     m.lastV = v;
     m.lastPos = pos;
 
     m.arrowMarker.setLatLng(pos);
     m.arrowMarker.setIcon(arrowIcon);
 
-    // om detta tåg just nu är hoverat: uppdatera labeln så den följer & får ny speed/text
+    // om hoverad (och inte pinnad): uppdatera hover-label så den följer med
     if (hoverTrainId === v.id && hoverLabelMarker && pinnedTrainId !== v.id) {
       showHoverLabel(v, pos);
     }
 
-    // om pinnad: uppdatera pinnad label
+    // om pinnad: uppdatera pinnad label (med pinned-stil)
     if (pinnedTrainId === v.id && pinnedLabelMarker) {
       pinnedLabelMarker.setLatLng(pos);
-      pinnedLabelMarker.setIcon(makeLabelIcon(v.line, buildLabelText(v), v.speedKmh));
+      pinnedLabelMarker.setIcon(makeLabelIcon(v.line, buildLabelText(v), v.speedKmh, true));
     }
   }
 }
@@ -397,7 +395,6 @@ async function refreshLive() {
     upsertTrain(v);
   }
 
-  // städa bort gamla fordon
   for (const [id, m] of markers.entries()) {
     if (!seen.has(id)) {
       map.removeLayer(m.group);
