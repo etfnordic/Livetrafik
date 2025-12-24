@@ -383,23 +383,21 @@ function makeRailIcon(line, bearingDeg, pop = false) {
   });
 }
 
-/* Buss-ikon: V-form (chevron), fill = kategori-färg, outline = BUS_COLOR */
+/* Buss-ikon: fill = kategori-färg, outline = BUS_COLOR */
 function makeBusIcon(bearingDeg, fillColor) {
   const rot = Number.isFinite(bearingDeg) ? bearingDeg + 90 : 0;
   const size = 22;
 
   const fill = fillColor || BUS_RED;
   const stroke = BUS_COLOR;
-  const strokeWidth = 6;
+  const strokeWidth = 5;
 
-  // Basform: chevron som pekar åt höger (">") i SVG-koordinater.
-  // Rotation används för att matcha färdriktning (samma som tidigare).
   const html = `
     <div style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
       <div style="transform: rotate(${rot}deg); width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center;">
         <svg width="${size}" height="${size}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
           <path
-            d="M20 18 L82 50 L20 82 L34 82 L68 50 L34 18 Z"
+            d="M10 50 L92 10 L62 50 L92 90 Z"
             fill="${fill}"
             stroke="${stroke}"
             stroke-width="${strokeWidth}"
@@ -878,12 +876,15 @@ function updateModeChipInactiveStates() {
   for (const btn of rowEl.querySelectorAll("button[data-mode]")) {
     const key = btn.dataset.mode;
     if (key === "bus") {
+      // Aktivt om vi visar allt, eller om någon busskategori är vald,
+      // eller om vi filtrerar via en specifik busslinje.
       let active = true;
       if (isShowNone()) active = false;
       else if (selectedLines.size === 0) active = true;
       else {
         active = hasAnyBusCategoryToken();
         if (!active) {
+          // om användaren valt någon linje (kan vara buss-linje)
           for (const x of selectedLines) {
             if (x !== "__NONE__") {
               active = true;
@@ -958,6 +959,7 @@ function renderSubchips() {
     return;
   }
 
+  // Buss undermeny
   if (subPanelModeKey === "bus") {
     const defs = [
       { label: "Röd", token: BUS_RED_TOKEN, bg: BUS_RED },
@@ -986,6 +988,7 @@ function renderSubchips() {
     return;
   }
 
+  // Spår undermeny
   const def = MODE_DEFS.find((d) => d.key === subPanelModeKey);
   if (!def || !def.lines) return;
 
