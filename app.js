@@ -56,19 +56,15 @@ function showHoverLabel(v, pos) {
   }
 }
 
-function hideHoverLabel(trainId) {
-  if (hoverTrainId !== trainId) return;
-  if (pinnedTrainId === trainId) return;
-
+function togglePinnedLabel(v, pos) {
+  // 1) Om det finns en hover-label: ta bort den (annars kan den bli kvar som "spöke")
   if (hoverLabelMarker) {
     map.removeLayer(hoverLabelMarker);
     hoverLabelMarker = null;
+    hoverTrainId = null;
   }
-  hoverTrainId = null;
-}
 
-function togglePinnedLabel(v, pos) {
-  // klick på samma tåg -> avpinna
+  // 2) Klick på samma tåg -> avpinna
   if (pinnedTrainId === v.id) {
     if (pinnedLabelMarker) map.removeLayer(pinnedLabelMarker);
     pinnedLabelMarker = null;
@@ -76,7 +72,7 @@ function togglePinnedLabel(v, pos) {
     return;
   }
 
-  // ny pin -> ta bort gammal
+  // 3) Ny pin -> ta bort gammal pin
   if (pinnedLabelMarker) map.removeLayer(pinnedLabelMarker);
 
   const icon = makeLabelIcon(v.line, buildLabelText(v), v.speedKmh);
@@ -85,7 +81,7 @@ function togglePinnedLabel(v, pos) {
   pinnedLabelMarker = L.marker(pos, {
     icon,
     interactive: false,
-    zIndexOffset: 2500,
+    zIndexOffset: 2500
   }).addTo(map);
 }
 
