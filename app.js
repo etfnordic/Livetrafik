@@ -196,24 +196,24 @@ function normalizeLine(rawLine) {
   return (m ? m[1] : s).replace(/\s+/g, "").toUpperCase();
 }
 
-const BUS_COLOR = "#0B0C10"; // nästan svart
-const BUS_STROKE = "#000000";
+/* Bussfärg (chip + label + ikon) */
+const BUS_COLOR = "#020224";
 
 function colorForRailLine(line) {
   const l = normalizeLine(line);
 
-  if (l === "7") return "#878C85"; // Spårväg city
-  if (l === "10" || l === "11") return "#0091D2"; // T-bana blå
-  if (l === "12") return "#738BA4"; // Nockebybanan
-  if (l === "13" || l === "14") return "#E31F26"; // T-bana röd
-  if (l === "17" || l === "18" || l === "19") return "#00B259"; // T-bana grön
-  if (l === "21") return "#B76934"; // Lidingöbanan
-  if (l === "25" || l === "26") return "#21B6BA"; // Saltsjöbanan
+  if (l === "7") return "#878C85";
+  if (l === "10" || l === "11") return "#0091D2";
+  if (l === "12") return "#738BA4";
+  if (l === "13" || l === "14") return "#E31F26";
+  if (l === "17" || l === "18" || l === "19") return "#00B259";
+  if (l === "21") return "#B76934";
+  if (l === "25" || l === "26") return "#21B6BA";
   if (l === "27" || l === "27S" || l === "28" || l === "28S" || l === "29")
-    return "#A86DAE"; // Roslagsbanan
-  if (l === "30" || l === "31") return "#E08A32"; // Tvärbanan
+    return "#A86DAE";
+  if (l === "30" || l === "31") return "#E08A32";
   if (l === "40" || l === "41" || l === "43" || l === "43X" || l === "48")
-    return "#ED66A5"; // Pendeltåg
+    return "#ED66A5";
 
   return "#111827";
 }
@@ -260,9 +260,9 @@ function fmtSpeed(speedKmh) {
 ----------------------------- */
 
 // Rail arrow SVG (som tidigare)
-function railArrowSvg(fillColor, strokeColor) {
+function railArrowSvg(fillColor, strokeColor, sizePx = 34) {
   return `
-    <svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${sizePx}" height="${sizePx}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M10 50 L92 10 L62 50 L92 90 Z"
         fill="${fillColor}"
@@ -270,15 +270,6 @@ function railArrowSvg(fillColor, strokeColor) {
         stroke-width="4"
         stroke-linejoin="round"
       />
-    </svg>
-  `;
-}
-
-// Bus “▶” triangle (mindre, enklare)
-function busTriangleSvg(color) {
-  return `
-    <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M7 5 L19 12 L7 19 Z" fill="${color}" />
     </svg>
   `;
 }
@@ -312,7 +303,7 @@ function makeRailIcon(line, bearingDeg, pop = false) {
   const html = `
     <div class="${popWrapClass}" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
       <div class="trainMarker" style="transform: rotate(${rot}deg);">
-        ${railArrowSvg(color, stroke)}
+        ${railArrowSvg(color, stroke, 34)}
       </div>
     </div>
   `;
@@ -326,13 +317,15 @@ function makeRailIcon(line, bearingDeg, pop = false) {
 }
 
 function makeBusIcon(bearingDeg) {
-  // vi roterar samma som rail (så “spetsen” pekar framåt)
+  // samma form som tåg men mindre + mörk färg
+  const stroke = darkenHex(BUS_COLOR, 0.35);
   const rot = Number.isFinite(bearingDeg) ? bearingDeg + 90 : 0;
+  const size = 22;
 
   const html = `
     <div style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
-      <div style="transform: rotate(${rot}deg); width:22px; height:22px; display:flex; align-items:center; justify-content:center;">
-        ${busTriangleSvg(BUS_COLOR)}
+      <div style="transform: rotate(${rot}deg); width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center;">
+        ${railArrowSvg(BUS_COLOR, stroke, size)}
       </div>
     </div>
   `;
@@ -340,8 +333,8 @@ function makeBusIcon(bearingDeg) {
   return L.divIcon({
     className: "busIconWrap",
     html,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
@@ -365,7 +358,7 @@ function makeLabelIcon(v, labelText, speedKmh, pinned = false) {
 }
 
 /* ----------------------------
-   enrich: nu även type
+   enrich: line + headsign + type
 ----------------------------- */
 function enrich(v) {
   if (!v?.tripId) return null;
@@ -376,27 +369,30 @@ function enrich(v) {
     ...v,
     line: info.line,
     headsign: info.headsign ?? null,
-    type: info.type ?? null, // <-- viktigt
+    type: info.type ?? null, // 700 buss, etc
   };
 }
 
 /* =========================================================
-   FILTER + CHIP UI (med BUSS-toggle)
+   FILTER + CHIP UI (bussar följer samma logik)
 ========================================================= */
 
-const LS_KEY = "sl_live.selectedLines.v4";
-const LS_BUS_KEY = "sl_live.busEnabled.v1";
+const LS_KEY = "sl_live.selectedLines.v5";
+
+// Special token för att kunna “visa bara bussar” utan att lista alla busslinjer
+const BUS_TOKEN = "__BUS__";
 
 /**
  * selectedLines:
- * - Tom Set => visa ALLA (för spårtrafik)
- * - "__NONE__" => visa INGA (för spårtrafik)
- * - Annars => visa bara linjerna i set (för spårtrafik)
+ * - Tom Set => visa ALLT (spår + buss)
+ * - "__NONE__" => visa inget
+ * - Innehåller BUS_TOKEN => bussar är på i urvalet
+ * - Innehåller vanliga linjer => visa bara dessa linjer (oavsett typ)
  *
- * bussar styrs separat av busEnabled (eftersom det finns väldigt många linjer)
+ * Viktigt: om selectedLines INTE är tomt och INTE innehåller BUS_TOKEN
+ *          så visas bussar bara om deras line finns i set.
  */
 let selectedLines = loadSelectedLines();
-let busEnabled = loadBusEnabled();
 
 const knownLines = new Set();
 
@@ -415,8 +411,6 @@ const MODE_DEFS = [
   { key: "lidingo", label: "Lidingöbanan", chipBg: colorForRailLine("21"), lines: ["21"] },
   { key: "nockeby", label: "Nockebybanan", chipBg: colorForRailLine("12"), lines: ["12"] },
   { key: "city", label: "Spårväg City", chipBg: colorForRailLine("7"), lines: ["7"] },
-
-  // Buss-chip, ingen undermeny
   { key: "bus", label: "Buss", chipBg: BUS_COLOR, lines: null },
 ];
 
@@ -436,21 +430,6 @@ function saveSelectedLines() {
   } catch {}
 }
 
-function loadBusEnabled() {
-  try {
-    const raw = localStorage.getItem(LS_BUS_KEY);
-    if (raw == null) return true; // default: visa bussar när de väl finns
-    return raw === "1";
-  } catch {
-    return true;
-  }
-}
-function saveBusEnabled() {
-  try {
-    localStorage.setItem(LS_BUS_KEY, busEnabled ? "1" : "0");
-  } catch {}
-}
-
 function isShowNone() {
   return selectedLines.has("__NONE__");
 }
@@ -459,25 +438,50 @@ function setShowNone() {
   saveSelectedLines();
 }
 function setShowAll() {
-  selectedLines = new Set();
+  selectedLines = new Set(); // tom = allt
   saveSelectedLines();
 }
 
-function isRailLineSelected(line) {
+function hasBusToken() {
+  return selectedLines.has(BUS_TOKEN);
+}
+
+function isLineSelected(line) {
   const l = normalizeLine(line);
   if (isShowNone()) return false;
   if (selectedLines.size === 0) return true;
   return selectedLines.has(l);
 }
 
+/**
+ * Filter-regler:
+ * - "__NONE__": visa inget
+ * - empty set: visa allt (inkl buss)
+ * - non-empty:
+ *   - spårtrafik: visa om line finns i set
+ *   - buss:
+ *        - om BUS_TOKEN finns => visa alla bussar
+ *        - annars visa bara bussar vars line finns i set
+ */
 function passesFilter(v) {
-  // Bussar styrs av busEnabled
-  if (v.type === 700) return busEnabled;
+  if (isShowNone()) return false;
+  if (selectedLines.size === 0) return true;
 
-  // Spårtrafik styrs av selectedLines
-  return isRailLineSelected(v.line);
+  const l = normalizeLine(v.line);
+
+  if (v.type === 700) {
+    if (hasBusToken()) return true;
+    return selectedLines.has(l);
+  }
+
+  return selectedLines.has(l);
 }
 
+/**
+ * Toggle för spår-linjechips (undermenyer):
+ * - Om “Rensa” eller “Visa alla”: sätt till {linje} (starta filtrering)
+ * - Annars toggla linje i set
+ */
 function toggleRailLineSelection(line) {
   const l = normalizeLine(line);
   if (!l) return;
@@ -499,15 +503,59 @@ function toggleRailLineSelection(line) {
   saveSelectedLines();
 }
 
-function setRailSelectionFromSearch(raw) {
-  const parts = String(raw ?? "")
-    .split(",")
-    .map((s) => normalizeLine(s))
-    .filter((s) => s && s !== "__NONE__");
+/**
+ * Buss-chip:
+ * - Om Visa alla (empty): gör “visa bara bussar” => {BUS_TOKEN}
+ * - Om Rensa (none): gör “visa bara bussar” => {BUS_TOKEN}
+ * - Annars:
+ *    - toggla BUS_TOKEN i set (så man kan ha “visa bussar + vissa spårlinjer”)
+ *    - Om set blir tom efter toggling => visa inget (Rensa)
+ */
+function toggleBusMode() {
+  if (selectedLines.size === 0 || isShowNone()) {
+    selectedLines = new Set([BUS_TOKEN]);
+    saveSelectedLines();
+    return;
+  }
 
-  if (parts.length === 0) return;
+  if (selectedLines.has(BUS_TOKEN)) selectedLines.delete(BUS_TOKEN);
+  else selectedLines.add(BUS_TOKEN);
 
-  selectedLines = new Set(parts);
+  if (selectedLines.size === 0) {
+    setShowNone();
+    return;
+  }
+
+  saveSelectedLines();
+}
+
+/**
+ * Sök = “set selection”
+ * - Om input innehåller enbart t.ex. "4" => { "4" } (visar bara buss 4 om den finns, och inga andra bussar)
+ * - "14,17" => {"14","17"}
+ * - "bus" => {BUS_TOKEN} (bonus)
+ * - "bus,4" => {BUS_TOKEN,"4"} (visa alla bussar + även linje 4 (redundant men ok))
+ */
+function setSelectionFromSearch(raw) {
+  const partsRaw = String(raw ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+  if (partsRaw.length === 0) return;
+
+  const out = new Set();
+
+  for (const p of partsRaw) {
+    const low = p.toLowerCase();
+    if (low === "bus" || low === "buss") {
+      out.add(BUS_TOKEN);
+      continue;
+    }
+    const norm = normalizeLine(p);
+    if (norm && norm !== "__NONE__") out.add(norm);
+  }
+
+  if (out.size === 0) return;
+
+  selectedLines = out;
   saveSelectedLines();
 }
 
@@ -714,23 +762,23 @@ function renderTopRow() {
   rowEl.innerHTML = "";
 
   for (const def of MODE_DEFS) {
-    // Buss: ingen undermeny, bara toggle
     if (def.key === "bus") {
       const btn = makeChipButton({
         label: def.label,
         bg: def.chipBg,
         onClick: (e) => {
           e.stopPropagation();
-          busEnabled = !busEnabled;
-          saveBusEnabled();
-          // stäng ev panel så det känns tydligt att buss-knappen inte har undermeny
+          toggleBusMode();
+          // buss-chip ska inte ha undermeny
           closeSubchipPanel();
-          // om vi stänger av bussar: ta bort ev buss-markers direkt
-          if (!busEnabled) removeAllVehiclesOfTypeNow(700);
+          // om buss-token försvann och vi inte uttryckligen visar busslinjer -> ta bort bussmarkers direkt
+          if (selectedLines.size !== 0 && !selectedLines.has(BUS_TOKEN)) {
+            // vi kan fortfarande visa en busslinje om den finns i set, så vi tar inte bort “alla bussar” här.
+            // refreshLive sköter det korrekt.
+          }
           updateModeChipInactiveStates();
           refreshLive().catch(console.error);
         },
-        classes: [],
       });
       btn.dataset.mode = def.key;
       rowEl.appendChild(btn);
@@ -753,6 +801,7 @@ function renderTopRow() {
     makeMiniButton("Visa alla", () => {
       setShowAll();
       renderSubchips();
+      updateModeChipInactiveStates();
       refreshLive().catch(console.error);
     })
   );
@@ -760,8 +809,7 @@ function renderTopRow() {
   rowEl.appendChild(
     makeMiniButton("Rensa", () => {
       setShowNone();
-      // rensa spårtrafik nu
-      removeAllRailNow();
+      removeAllNow();
       renderSubchips();
       updateModeChipInactiveStates();
     })
@@ -773,7 +821,7 @@ function renderTopRow() {
   searchInputEl = document.createElement("input");
   searchInputEl.className = "chipSearch";
   searchInputEl.type = "text";
-  searchInputEl.placeholder = "Linje (14,17)…";
+  searchInputEl.placeholder = "Linje (14,4)…";
 
   searchBtnEl = document.createElement("button");
   searchBtnEl.type = "button";
@@ -784,10 +832,11 @@ function renderTopRow() {
     const raw = searchInputEl.value;
     if (!raw || !raw.trim()) return;
 
-    setRailSelectionFromSearch(raw);
+    setSelectionFromSearch(raw);
     searchInputEl.value = "";
 
     renderSubchips();
+    updateModeChipInactiveStates();
     refreshLive().catch(console.error);
   };
 
@@ -812,9 +861,27 @@ function updateModeChipInactiveStates() {
     const def = MODE_DEFS.find((d) => d.key === key);
     if (!def) continue;
 
-    // Buss:
     if (key === "bus") {
-      btn.classList.toggle("is-inactive", !busEnabled);
+      // buss-chip är inaktivt om vi explicit filtrerar och varken BUS_TOKEN eller någon busslinje finns i set
+      let active = true;
+      if (isShowNone()) active = false;
+      else if (selectedLines.size === 0) active = true;
+      else {
+        active = selectedLines.has(BUS_TOKEN);
+        // Om vi filtrerar på en busslinje (t.ex. {4}) ska chipet inte se “inaktivt” ut
+        if (!active) {
+          for (const x of selectedLines) {
+            if (x !== "__NONE__" && x !== BUS_TOKEN) {
+              // kan vara busslinje eller spårlinje; vi kan inte veta här.
+              // Men om användaren valt en siffra som är busslinje, vill de att chipet ska kännas aktivt.
+              // Vi låter därför chipet vara aktivt om urvalet innehåller någon "vanlig linje".
+              active = true;
+              break;
+            }
+          }
+        }
+      }
+      btn.classList.toggle("is-inactive", !active);
       btn.classList.toggle("is-activeMode", false);
       continue;
     }
@@ -825,7 +892,7 @@ function updateModeChipInactiveStates() {
     else if (selectedLines.size === 0) anySelected = true;
     else {
       for (const l of def.lines) {
-        if (isRailLineSelected(l)) {
+        if (isLineSelected(l)) {
           anySelected = true;
           break;
         }
@@ -894,7 +961,7 @@ function renderSubchips() {
       },
     });
 
-    btn.classList.toggle("is-unselected", !isRailLineSelected(line));
+    btn.classList.toggle("is-unselected", !isLineSelected(line));
     subPanelEl.appendChild(btn);
   }
 
@@ -905,7 +972,7 @@ function renderSubchips() {
    Marker lifecycle helpers
 ========================================================= */
 
-function removeTrainCompletely(id) {
+function removeVehicleCompletely(id) {
   const m = markers.get(id);
   if (!m) return;
 
@@ -927,23 +994,30 @@ function removeTrainCompletely(id) {
   }
 }
 
-function removeAllVehiclesOfTypeNow(type) {
+function removeAllNow() {
   for (const [id, m] of markers.entries()) {
-    if (m?.lastV?.type !== type) continue;
-    removeTrainCompletely(id);
+    if (m.anim?.raf) cancelAnimationFrame(m.anim.raf);
+    map.removeLayer(m.group);
+    markers.delete(id);
   }
-}
+  lastPos.clear();
+  lastBearing.clear();
+  bearingEstablished.clear();
 
-function removeAllRailNow() {
-  for (const [id, m] of markers.entries()) {
-    // behåll bussar
-    if (m?.lastV?.type === 700) continue;
-    removeTrainCompletely(id);
+  if (hoverLabelMarker) {
+    map.removeLayer(hoverLabelMarker);
+    hoverLabelMarker = null;
+    hoverTrainId = null;
+  }
+  if (pinnedLabelMarker) {
+    map.removeLayer(pinnedLabelMarker);
+    pinnedLabelMarker = null;
+    pinnedTrainId = null;
   }
 }
 
 /* =========================================================
-   Upsert train/bus (samma logik + annan ikon för buss)
+   Upsert vehicle (rail/bus)
 ========================================================= */
 function upsertVehicle(v) {
   v.line = normalizeLine(v.line);
@@ -1037,7 +1111,6 @@ function upsertVehicle(v) {
     m.lastPos = pos;
     m.hasBearing = hasBearingNow;
 
-    // Uppdatera icon (buss = alltid busIcon, spår = railIcon + pop)
     if (v.type === 700) {
       m.arrowMarker.setIcon(makeBusIcon(hasBearingNow ? bearing : NaN));
     } else {
@@ -1081,7 +1154,14 @@ async function refreshLive() {
   const data = await res.json();
   const seen = new Set();
 
-  // “Rensa” gäller bara spårtrafik – bussar kan fortfarande visas om bussEnabled = true
+  // Om visa inget: städa och return
+  if (isShowNone()) {
+    removeAllNow();
+    updateModeChipInactiveStates();
+    renderSubchips();
+    return;
+  }
+
   for (const raw of data) {
     if (!raw?.id || raw.lat == null || raw.lon == null) continue;
 
@@ -1092,7 +1172,7 @@ async function refreshLive() {
     knownLines.add(v.line);
 
     if (!passesFilter(v)) {
-      if (markers.has(v.id)) removeTrainCompletely(v.id);
+      if (markers.has(v.id)) removeVehicleCompletely(v.id);
       continue;
     }
 
@@ -1100,8 +1180,8 @@ async function refreshLive() {
     upsertVehicle(v);
   }
 
-  for (const [id, m] of markers.entries()) {
-    if (!seen.has(id)) removeTrainCompletely(id);
+  for (const [id] of markers.entries()) {
+    if (!seen.has(id)) removeVehicleCompletely(id);
   }
 
   updateModeChipInactiveStates();
