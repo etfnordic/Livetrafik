@@ -21,7 +21,7 @@ html, body { height: 100%; margin: 0; }
 
   /* Skugga */
   box-shadow:
-    0 2px 6px rgba(0,0,0,0.45),
+    0 2px 6px rgba(0,0,0,0.35),
     0 0 0 1px rgba(0,0,0,0.15);
 }
 
@@ -59,7 +59,7 @@ html, body { height: 100%; margin: 0; }
 .trainLabelPinned{
   box-shadow:
     0 10px 22px rgba(0,0,0,.35),     /* lyft */
-    0 0 0 3px rgba(255,255,255,.45), /* ljus halo runt */
+    0 0 0 3px rgba(255,255,255,.35), /* ljus halo runt */
     0 0 18px rgba(255,255,255,.28);  /* mjukt glow */
 }
 
