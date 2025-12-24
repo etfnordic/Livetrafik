@@ -89,6 +89,14 @@ function togglePinnedLabel(v, pos) {
     if (pinnedLabelMarker) map.removeLayer(pinnedLabelMarker);
     pinnedLabelMarker = null;
     pinnedTrainId = null;
+
+    // ✅ NYTT: när vi avpinnar, återställ z-index på ikonen direkt
+    const m = markers.get(v.id);
+    if (m?.arrowMarker) m.arrowMarker.setZIndexOffset(500);
+
+    // ✅ NYTT: se till att ikonen rerenderas utan "selected"
+    if (m?.lastV) upsertTrain(m.lastV);
+
     return;
   }
 
@@ -104,6 +112,13 @@ function togglePinnedLabel(v, pos) {
     interactive: false,
     zIndexOffset: 2500,
   }).addTo(map);
+
+  // ✅ NYTT (valfria delen): höj z-index på själva tåget när det är pinnat
+  const m = markers.get(v.id);
+  if (m?.arrowMarker) m.arrowMarker.setZIndexOffset(3000);
+
+  // ✅ NYTT: rerendera ikonen så den får glow
+  if (m?.lastV) upsertTrain(m.lastV);
 }
 
 // klick på kartbakgrund -> avpinna + städa hover
@@ -111,7 +126,14 @@ map.on("click", () => {
   if (pinnedLabelMarker) {
     map.removeLayer(pinnedLabelMarker);
     pinnedLabelMarker = null;
+
+    // ✅ NYTT: återställ z-index på tåget som var pinnat
+    const prevPinnedId = pinnedTrainId;
     pinnedTrainId = null;
+
+    const m = markers.get(prevPinnedId);
+    if (m?.arrowMarker) m.arrowMarker.setZIndexOffset(500);
+    if (m?.lastV) upsertTrain(m.lastV); // rerendera utan glow
   }
 
   if (hoverLabelMarker) {
@@ -239,7 +261,7 @@ function colorForLine(line) {
 function darkenHex(hex, amount = 0.5) {
   const clamp255 = (v) => Math.max(0, Math.min(255, v));
 
-  const r = parseInt(hex.slice(1, 3), 16);
+  const r = parseInt(hex.slice(1,  qp, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
 
@@ -291,15 +313,18 @@ function fmtSpeed(speedKmh) {
 /**
  * Icon: cirkel (innan bearing) eller pil (när bearing finns).
  * pop=true används när ett tåg går från cirkel -> pil första gången.
+ * ✅ NYTT: selected=true ger glow på tåget när det är pinnat
  */
-function makeArrowIcon(line, bearingDeg, pop = false) {
+function makeArrowIcon(line, bearingDeg, pop = false, selected = false) {
   const color = colorForLine(line);
   const stroke = darkenHex(color, 0.5);
+
+  const selectedClass = selected ? " trainMarkerSelected" : "";
 
   // Ingen bearing => cirkel
   if (!Number.isFinite(bearingDeg)) {
     const html = `
-      <div class="trainMarker" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
+      <div class="trainMarker${selectedClass}" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
         <div class="trainDot" style="
           width: 16px; height: 16px;
           border-radius: 999px;
@@ -321,7 +346,7 @@ function makeArrowIcon(line, bearingDeg, pop = false) {
 
   // Viktigt: pop-animation på wrapper (inte på rotate-diven)
   const html = `
-    <div class="${popWrapClass}" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
+    <div class="${popWrapClass}${selectedClass}" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
       <div class="trainMarker" style="transform: rotate(${rot}deg);">
         ${arrowSvg(color, stroke)}
       </div>
@@ -412,16 +437,22 @@ function upsertTrain(v) {
   lastPos.set(v.id, { lat: v.lat, lon: v.lon, ts: v.ts ?? Date.now() });
 
   const hasBearingNow = Number.isFinite(bearing);
+  const isSelected = pinnedTrainId === v.id; // ✅ NYTT
 
   if (!markers.has(v.id)) {
     // nytt tåg: inget "pop" här (vi vet inte om det nyss var cirkel)
-    const arrowIcon = makeArrowIcon(v.line, hasBearingNow ? bearing : NaN, false);
+    const arrowIcon = makeArrowIcon(
+      v.line,
+      hasBearingNow ? bearing : NaN,
+      false,
+      isSelected
+    );
 
     const group = L.layerGroup();
     const arrowMarker = L.marker(pos, {
       icon: arrowIcon,
       interactive: true,
-      zIndexOffset: 500,
+      zIndexOffset: isSelected ? 3000 : 500, // ✅ NYTT
     });
 
     arrowMarker.on("mouseover", () => {
@@ -462,8 +493,13 @@ function upsertTrain(v) {
     m.lastPos = pos;
     m.hasBearing = hasBearingNow;
 
-    // uppdatera icon (och ev pop-anim)
-    m.arrowMarker.setIcon(makeArrowIcon(v.line, hasBearingNow ? bearing : NaN, pop));
+    // ✅ NYTT: z-index beroende på selected
+    m.arrowMarker.setZIndexOffset(isSelected ? 3000 : 500);
+
+    // uppdatera icon (och ev pop-anim) + selected glow
+    m.arrowMarker.setIcon(
+      makeArrowIcon(v.line, hasBearingNow ? bearing : NaN, pop, isSelected)
+    );
 
     // animera position med distansbaserad duration
     const from = m.arrowMarker.getLatLng();
