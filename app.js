@@ -144,6 +144,21 @@ function colorForLine(line) {
   return "#111827";
 }
 
+function darkenHex(hex, amount = 0.35) {
+  const clamp = (v) => Math.max(0, Math.min(255, v));
+
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  const dr = clamp(Math.round(r * (1 - amount)));
+  const dg = clamp(Math.round(g * (1 - amount)));
+  const db = clamp(Math.round(b * (1 - amount)));
+
+  return `#${dr.toString(16).padStart(2, "0")}${dg
+    .toString(16)
+    .padStart(2, "0")}${db.toString(16).padStart(2, "0")}`;
+}
 /**
  * Heading 0..360 (0=norr, 90=öst)
  */
@@ -167,14 +182,14 @@ function headingFromPoints(lat1, lon1, lat2, lon2) {
 /**
  * Pil-SVG (fylld).
  */
-function arrowSvg(fillColor) {
+function arrowSvg(fillColor, strokeColor) {
   return `
     <svg width="34" height="34" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M10 50 L92 10 L62 50 L92 90 Z"
         fill="${fillColor}"
-        stroke="#111"
-        stroke-width="6"
+        stroke="${strokeColor}"
+        stroke-width="4"
         stroke-linejoin="round"
       />
     </svg>
@@ -192,6 +207,8 @@ function fmtSpeed(speedKmh) {
  */
 function makeArrowIcon(line, bearingDeg) {
   const color = colorForLine(line);
+  const stroke = darkenHex(color, 0.35);
+
 
   // Ingen bearing => cirkel
   if (!Number.isFinite(bearingDeg)) {
@@ -201,7 +218,7 @@ function makeArrowIcon(line, bearingDeg) {
           width: 16px; height: 16px;
           border-radius: 999px;
           background: ${color};
-          border: 2px solid #111;
+          border: 2px solid ${stroke};
         "></div>
       </div>
     `;
@@ -222,7 +239,7 @@ function makeArrowIcon(line, bearingDeg) {
         transform: rotate(${rot}deg);
         filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));
       ">
-      ${arrowSvg(color)}
+      ${arrowSvg(color, stroke)}
     </div>
   `;
 
