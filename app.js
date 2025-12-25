@@ -480,38 +480,48 @@ function arrowSvg({ fill, stroke, strokeWidth = 5, dash = null, gradient = null,
   `;
 }
 
-function busArrowSvgSoft({ fill, stroke, strokeWidth = 6, dash = null, sizePx = 22 }) {
+function busArrowSvgNavStyle({ fill, stroke, strokeWidth = 6, dash = null, sizePx = 26 }) {
   const dashAttr = dash ? `stroke-dasharray="${dash}"` : "";
+
   return `
     <svg width="${sizePx}" height="${sizePx}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <!-- Side arcs -->
+      <path d="M11 26 C7 32, 7 32, 11 38"
+            fill="none"
+            stroke="${stroke}"
+            stroke-width="${strokeWidth}"
+            stroke-linecap="round"
+            ${dashAttr}
+      />
+      <path d="M53 26 C57 32, 57 32, 53 38"
+            fill="none"
+            stroke="${stroke}"
+            stroke-width="${strokeWidth}"
+            stroke-linecap="round"
+            ${dashAttr}
+      />
+
+      <!-- Main soft navigation arrow -->
       <path
-        d="M32 6
-           C30.3 6 28.8 6.9 27.9 8.3
-           L12.1 33.5
-           C11.3 34.8 11.2 36.5 11.9 37.9
-           C12.6 39.3 13.9 40.3 15.4 40.6
-           L26.6 43
-           C28.1 43.3 29.1 44.7 28.8 46.2
-           L26.6 57.2
-           C26.3 58.8 27.1 60.3 28.6 61
-           C30 61.8 31.7 61.5 32.8 60.4
-           C33.1 60.1 33.3 59.8 33.5 59.5
-           L32 57.9
-           L30.5 59.5
-           C30.7 59.8 30.9 60.1 31.2 60.4
-           C32.3 61.5 34 61.8 35.4 61
-           C36.9 60.3 37.7 58.8 37.4 57.2
-           L35.2 46.2
-           C34.9 44.7 35.9 43.3 37.4 43
-           L48.6 40.6
-           C50.1 40.3 51.4 39.3 52.1 37.9
-           C52.8 36.5 52.7 34.8 51.9 33.5
-           L36.1 8.3
-           C35.2 6.9 33.7 6 32 6
-           Z"
+        d="
+          M32 6
+          C29.8 6 28.0 7.2 26.8 9.3
+          L16.2 28.2
+          C15.1 30.2 15.6 32.7 17.4 34.1
+          C19.2 35.5 21.9 35.3 23.5 33.6
+          L28.5 28.2
+          C29.6 27.0 31.0 26.4 32.5 26.4
+          C34.0 26.4 35.4 27.0 36.5 28.2
+          L41.5 33.6
+          C43.1 35.3 45.8 35.5 47.6 34.1
+          C49.4 32.7 49.9 30.2 48.8 28.2
+          L38.2 9.3
+          C37.0 7.2 35.2 6 32.9 6
+          Z
+        "
         fill="${fill}"
         stroke="${stroke}"
-        stroke-width="${strokeWidth}"
+        stroke-width="${Math.max(2, Math.round(strokeWidth * 0.55))}"
         stroke-linejoin="round"
         stroke-linecap="round"
         ${dashAttr}
@@ -522,14 +532,14 @@ function busArrowSvgSoft({ fill, stroke, strokeWidth = 6, dash = null, sizePx = 
 
 function makeBusIcon(bearingDeg, v) {
   const rot = Number.isFinite(bearingDeg) ? bearingDeg + 90 : 0;
-  const size = 22;
+  const size = 26; // lite större för att matcha referens-utseendet
 
   const style = busColorStyleForVehicle(v);
 
   const html = `
     <div style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
       <div style="transform: rotate(${rot}deg); width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center;">
-        ${busArrowSvgSoft({
+        ${busArrowSvgNavStyle({
           fill: style.iconFill,
           stroke: style.iconStroke,
           strokeWidth: 6,
@@ -539,6 +549,14 @@ function makeBusIcon(bearingDeg, v) {
       </div>
     </div>
   `;
+
+  return L.divIcon({
+    className: "busIconWrap",
+    html,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
 
   return L.divIcon({
     className: "busIconWrap",
