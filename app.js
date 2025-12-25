@@ -839,7 +839,7 @@ function renderTopRow() {
   searchInputEl = document.createElement("input");
   searchInputEl.className = "chipSearch";
   searchInputEl.type = "text";
-  searchInputEl.placeholder = "Linje (14,4)…";
+  searchInputEl.placeholder = "Linje (4,17)…";
 
   searchBtnEl = document.createElement("button");
   searchBtnEl.type = "button";
