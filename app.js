@@ -228,7 +228,7 @@ const BUS_NEAR_TOKEN = "__BUS_NEAR__";
 
 /* Båt */
 const BOAT_COLOR = "#022B44"; // marinblå (huvudchip)
-const BOAT_PENDEL_BG = "#7EC8FF"; // ljusblå
+const BOAT_PENDEL_BG = "#007DB8"; // ljusblå
 const BOAT_WAX_YELLOW = "#F2C94C";
 const BOAT_WAX_BLUE = "#1E4ED8";
 
@@ -567,7 +567,7 @@ function boatChevronSvg({ fill, sizePx = 24, gradient = null }) {
 }
 
 function makeBoatIcon(bearingDeg, v) {
-  const rot = Number.isFinite(bearingDeg) ? bearingDeg + 90 : 0;
+  const rot = Number.isFinite(bearingDeg) ? bearingDeg - 90 : 0;
   const size = 24;
 
   const style = boatStyleForVehicle(v);
