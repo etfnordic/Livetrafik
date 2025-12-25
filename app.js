@@ -545,41 +545,6 @@ function boatChevronSvg({ fill, sizePx = 24, gradient = null }) {
   `;
 }
 
-function boatChevronSvg({ fill, sizePx = 24, gradient = null }) {
-  const defs = gradient
-    ? `
-      <defs>
-        <linearGradient id="boatGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="${gradient.left}"/>
-          <stop offset="50%" stop-color="${gradient.left}"/>
-          <stop offset="50%" stop-color="${gradient.right}"/>
-          <stop offset="100%" stop-color="${gradient.right}"/>
-        </linearGradient>
-      </defs>
-    `
-    : "";
-
-  const fillAttr = gradient ? "url(#boatGrad)" : fill;
-
-  // En mjuk chevron i stil med din bild (tjock, rundad join/cap)
-  return `
-    <svg width="${sizePx}" height="${sizePx}" viewBox="0 0 64 64"
-         xmlns="http://www.w3.org/2000/svg"
-         shape-rendering="geometricPrecision"
-         style="display:block">
-      ${defs}
-      <path
-        d="M22 14 L44 32 L22 50"
-        fill="none"
-        stroke="${fillAttr}"
-        stroke-width="14"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  `;
-}
-
 function makeBusIcon(bearingDeg, v) {
   const rot = Number.isFinite(bearingDeg) ? bearingDeg : 0;
   const size = 26;
