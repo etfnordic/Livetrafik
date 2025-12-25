@@ -211,32 +211,7 @@ const BUS_REPL_TOKEN = "__BUS_REPL__";
 
 /* Blå busslinjer */
 const BUS_BLUE_LINES = new Set(
-  [
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "172",
-    "173",
-    "176",
-    "176E",
-    "176X",
-    "177",
-    "177E",
-    "178",
-    "179",
-    "471",
-    "474",
-    "670",
-    "670X",
-    "676",
-    "676X",
-    "677",
-    "873",
-    "875",
-  ].map((s) => s.toUpperCase())
+  ["1", "2", "3", "4", "5", "6", "172", "173", "176", "176E", "176X", "177", "177E", "178", "179", "471", "474", "670", "670X", "676", "676X", "677", "873", "875"].map((s) => s.toUpperCase())
 );
 
 /* Ersättningslinjer */
@@ -327,7 +302,7 @@ function fmtSpeed(speedKmh) {
 ----------------------------- */
 
 // Rail arrow SVG
-function railArrowSvg(fillColor, strokeColor, sizePx = 34) {
+function railArrowSvg(fillColor, strokeColor, sizePx = 24) {
   return `
     <svg width="${sizePx}" height="${sizePx}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
       <path
@@ -370,7 +345,7 @@ function makeRailIcon(line, bearingDeg, pop = false) {
   const html = `
     <div class="${popWrapClass}" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
       <div class="trainMarker" style="transform: rotate(${rot}deg);">
-        ${railArrowSvg(color, stroke, 34)}
+        ${railArrowSvg(color, stroke, 24)}
       </div>
     </div>
   `;
