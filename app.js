@@ -485,12 +485,13 @@ function busArrowSvgNavStyle({ fill, stroke, strokeWidth = 6, dash = null, sizeP
 
   return `
     <svg width="${sizePx}" height="${sizePx}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-      <!-- Side arcs -->
+      <!-- Side arcs (ONLY stroke) -->
       <path d="M11 26 C7 32, 7 32, 11 38"
             fill="none"
             stroke="${stroke}"
             stroke-width="${strokeWidth}"
             stroke-linecap="round"
+            stroke-linejoin="round"
             ${dashAttr}
       />
       <path d="M53 26 C57 32, 57 32, 53 38"
@@ -498,10 +499,11 @@ function busArrowSvgNavStyle({ fill, stroke, strokeWidth = 6, dash = null, sizeP
             stroke="${stroke}"
             stroke-width="${strokeWidth}"
             stroke-linecap="round"
+            stroke-linejoin="round"
             ${dashAttr}
       />
 
-      <!-- Main soft navigation arrow -->
+      <!-- Main soft navigation arrow (NO stroke -> removes black artifacts) -->
       <path
         d="
           M32 6
@@ -520,11 +522,7 @@ function busArrowSvgNavStyle({ fill, stroke, strokeWidth = 6, dash = null, sizeP
           Z
         "
         fill="${fill}"
-        stroke="${stroke}"
-        stroke-width="${Math.max(2, Math.round(strokeWidth * 0.55))}"
-        stroke-linejoin="round"
-        stroke-linecap="round"
-        ${dashAttr}
+        stroke="none"
       />
     </svg>
   `;
