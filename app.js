@@ -749,6 +749,30 @@ function anySelectedNonRailLineValue() {
   return false;
 }
 
+/* ===== NYTT: skilj buss vs färja när man söker på numeriska linjer ===== */
+function anySelectedBusLine() {
+  for (const x of selectedLines) {
+    if (String(x).startsWith("__")) continue;
+    const l = normalizeLine(x);
+    if (ALL_RAIL_LINES.has(l)) continue;
+    const n = Number(l);
+    if (Number.isFinite(n) && n < 1000) return true; // buss-linjer
+  }
+  return false;
+}
+
+function anySelectedBoatLine() {
+  for (const x of selectedLines) {
+    if (String(x).startsWith("__")) continue;
+    const l = normalizeLine(x);
+    if (ALL_RAIL_LINES.has(l)) continue;
+    const n = Number(l);
+    if (Number.isFinite(n) && n >= 1000) return true; // färja-linjer (typ 80/830/978 i ditt data är "line", men type=1000 styr i verkligheten)
+  }
+  return false;
+}
+/* ====================================================================== */
+
 /**
  * Filter:
  * include:
@@ -793,7 +817,6 @@ function passesFilter(v) {
   if (v.type === 700) {
     if (selectedLines.has(EXCLUDE_BUS_TOKEN)) return false;
 
-    // om man exkluderar busskategorier i “visa allt”
     if (
       selectedLines.has(BUS_RED_TOKEN) ||
       selectedLines.has(BUS_BLUE_TOKEN) ||
@@ -805,7 +828,6 @@ function passesFilter(v) {
       return true;
     }
 
-    // annars exkludera via linjenummer
     if (selectedLines.has(l)) return false;
     return true;
   }
@@ -823,7 +845,6 @@ function passesFilter(v) {
     return true;
   }
 
-  // tåg/spår
   return !selectedLines.has(l);
 }
 
@@ -837,7 +858,6 @@ function toggleRailLineSelection(line) {
   if (!l) return;
 
   if (isShowNone()) {
-    // från "rensa": börja inkludera
     selectionMode = "include";
     selectedLines = new Set([l]);
     saveSelectedLines();
@@ -846,7 +866,6 @@ function toggleRailLineSelection(line) {
 
   if (selectionMode === "include") {
     if (selectedLines.size === 0) {
-      // visa allt -> klick betyder "dölj"
       selectionMode = "exclude";
       selectedLines = new Set([l]);
       saveSelectedLines();
@@ -857,7 +876,6 @@ function toggleRailLineSelection(line) {
     else selectedLines.add(l);
 
     if (selectedLines.size === 0) {
-      // om inget valt längre: tillbaka till visa allt (inte "rensa")
       setShowAll();
       return;
     }
@@ -866,16 +884,10 @@ function toggleRailLineSelection(line) {
     return;
   }
 
-  // exclude-mode: toggle exkluderad linje
   if (selectedLines.has(l)) selectedLines.delete(l);
   else selectedLines.add(l);
 
-  // om inga exkluderingar kvar alls -> visa allt
-  const hasAnything =
-    selectedLines.size > 0 &&
-    !(selectedLines.size === 0);
-
-  if (!hasAnything || selectedLines.size === 0) {
+  if (selectedLines.size === 0) {
     setShowAll();
     return;
   }
@@ -891,8 +903,16 @@ function toggleBusCategoryToken(token) {
     return;
   }
 
+  /* ===== NYTT: om vi är i "Visa tåg"-läge och användaren väljer buss => byt till include ===== */
+  if (selectionMode === "exclude" && selectedLines.has(EXCLUDE_BUS_TOKEN)) {
+    selectionMode = "include";
+    selectedLines = new Set([token]);
+    saveSelectedLines();
+    return;
+  }
+  /* ======================================================================================== */
+
   if (selectionMode === "include" && selectedLines.size === 0) {
-    // visa allt -> klick betyder "dölj denna busskategori"
     selectionMode = "exclude";
     selectedLines = new Set([token]);
     saveSelectedLines();
@@ -923,8 +943,16 @@ function toggleBoatCategoryToken(token) {
     return;
   }
 
+  /* ===== NYTT: om vi är i "Visa tåg"-läge och användaren väljer färja => byt till include ===== */
+  if (selectionMode === "exclude" && selectedLines.has(EXCLUDE_BOAT_TOKEN)) {
+    selectionMode = "include";
+    selectedLines = new Set([token]);
+    saveSelectedLines();
+    return;
+  }
+  /* ========================================================================================= */
+
   if (selectionMode === "include" && selectedLines.size === 0) {
-    // visa allt -> klick betyder "dölj denna färjekategori"
     selectionMode = "exclude";
     selectedLines = new Set([token]);
     saveSelectedLines();
@@ -955,7 +983,6 @@ function setSelectionFromSearch(raw) {
 
   if (parts.length === 0) return;
 
-  // Sök ska alltid vara “include-exakt”
   selectionMode = "include";
   selectedLines = new Set(parts);
   saveSelectedLines();
@@ -1190,7 +1217,6 @@ function renderTopRow() {
     })
   );
 
-  // NY: Visa tåg (allt utom buss och färja)
   rowEl.appendChild(
     makeMiniButton("Visa tåg", () => {
       setShowTrainsOnly();
@@ -1256,9 +1282,8 @@ function updateModeChipInactiveStates() {
       if (isShowNone()) active = false;
       else if (selectionMode === "include") {
         if (selectedLines.size === 0) active = true;
-        else active = hasAnyBusCategoryToken() || anySelectedNonRailLineValue();
+        else active = hasAnyBusCategoryToken() || anySelectedBusLine(); // ✅ FIX
       } else {
-        // exclude-mode: aktiv om buss inte är exkluderad
         active = !selectedLines.has(EXCLUDE_BUS_TOKEN);
       }
 
@@ -1273,7 +1298,7 @@ function updateModeChipInactiveStates() {
       if (isShowNone()) active = false;
       else if (selectionMode === "include") {
         if (selectedLines.size === 0) active = true;
-        else active = hasAnyBoatCategoryToken() || anySelectedNonRailLineValue();
+        else active = hasAnyBoatCategoryToken() || anySelectedBoatLine(); // ✅ FIX
       } else {
         active = !selectedLines.has(EXCLUDE_BOAT_TOKEN);
       }
@@ -1366,7 +1391,6 @@ function renderSubchips() {
         },
       });
 
-      // i include-mode: "unselected" betyder inte valt. I exclude-mode: token betyder "dölj" så vi visar den som vald när token finns.
       btn.classList.toggle("is-unselected", !selectedLines.has(d.token));
       subPanelEl.appendChild(btn);
     }
@@ -1425,7 +1449,6 @@ function renderSubchips() {
       },
     });
 
-    // i exclude-mode är "unselected" = linjen är exkluderad (dold)
     if (selectionMode === "exclude") {
       btn.classList.toggle("is-unselected", selectedLines.has(line));
     } else {
