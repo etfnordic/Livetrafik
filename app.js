@@ -196,7 +196,19 @@ function normalizeLine(rawLine) {
   return (m ? m[1] : s).replace(/\s+/g, "").toUpperCase();
 }
 
-/* Buss-huvudfärg (chip + outline) */
+function normalizeDesc(raw) {
+  return String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/* ============================
+   BUS + BOAT colors & category
+============================ */
+
+/* Buss-huvudfärg (chip) */
 const BUS_COLOR = "#020224";
 
 /* Buss-kategori färger */
@@ -204,43 +216,120 @@ const BUS_RED = "#D11B2D";
 const BUS_BLUE = "#1E4ED8";
 const BUS_REPL = "#F28C28";
 
+/* Närtrafiken */
+const BUS_NEAR_BG = "#FFFFFF";
+const BUS_NEAR_STROKE = BUS_RED;
+
 /* Tokens i selectedLines för buss-kategorier */
 const BUS_RED_TOKEN = "__BUS_RED__";
 const BUS_BLUE_TOKEN = "__BUS_BLUE__";
 const BUS_REPL_TOKEN = "__BUS_REPL__";
+const BUS_NEAR_TOKEN = "__BUS_NEAR__";
 
-/* Blå busslinjer */
-const BUS_BLUE_LINES = new Set(
-  ["1", "2", "3", "4", "5", "6", "172", "173", "176", "176E", "176X", "177", "177E", "178", "179", "471", "474", "670", "670X", "676", "676X", "677", "873", "875"].map((s) => s.toUpperCase())
-);
+/* Båt */
+const BOAT_COLOR = "#022B44"; // marinblå (huvudchip)
+const BOAT_PENDEL_BG = "#7EC8FF"; // ljusblå
+const BOAT_WAX_YELLOW = "#F2C94C";
+const BOAT_WAX_BLUE = "#1E4ED8";
 
-/* Ersättningslinjer */
-const BUS_REPL_LINES = new Set(
-  ["21B", "25M", "26M", "25F", "26C", "41S", "40X"].map((s) => s.toUpperCase())
-);
+/* Tokens för båt-kategorier */
+const BOAT_PENDEL_TOKEN = "__BOAT_PENDEL__";
+const BOAT_WAX_TOKEN = "__BOAT_WAX__";
 
-function busCategoryTokenForLine(line) {
-  const l = normalizeLine(line);
-  if (BUS_REPL_LINES.has(l)) return BUS_REPL_TOKEN;
-  if (BUS_BLUE_LINES.has(l)) return BUS_BLUE_TOKEN;
-  return BUS_RED_TOKEN; // default röd
+function busCategoryTokenFromDesc(desc) {
+  const d = normalizeDesc(desc);
+
+  // Närtrafiken
+  if (d.includes("nartrafik")) return BUS_NEAR_TOKEN;
+
+  // Ersättning
+  if (d.includes("ersatt") || d.includes("ersat")) return BUS_REPL_TOKEN;
+
+  // Blå buss
+  if (d.includes("blabuss") || d.includes("bla buss") || d.includes("blue"))
+    return BUS_BLUE_TOKEN;
+
+  // Fallback: default röd
+  return BUS_RED_TOKEN;
 }
 
-function busColorForLine(line) {
-  const token = busCategoryTokenForLine(line);
-  if (token === BUS_BLUE_TOKEN) return BUS_BLUE;
-  if (token === BUS_REPL_TOKEN) return BUS_REPL;
-  return BUS_RED;
+function busCategoryTokenForVehicle(v) {
+  return busCategoryTokenFromDesc(v?.desc);
+}
+
+function busColorStyleForVehicle(v) {
+  const token = busCategoryTokenForVehicle(v);
+
+  if (token === BUS_BLUE_TOKEN)
+    return { bg: BUS_BLUE, labelText: "#FFFFFF", iconFill: BUS_BLUE, iconStroke: BUS_COLOR };
+  if (token === BUS_REPL_TOKEN)
+    return { bg: BUS_REPL, labelText: "#FFFFFF", iconFill: BUS_REPL, iconStroke: BUS_COLOR };
+
+  if (token === BUS_NEAR_TOKEN) {
+    // Vit + rödsträckad
+    return {
+      bg: BUS_NEAR_BG,
+      labelText: BUS_NEAR_STROKE,
+      labelBorder: `2px dashed ${BUS_NEAR_STROKE}`,
+      iconFill: BUS_NEAR_BG,
+      iconStroke: BUS_NEAR_STROKE,
+      iconStrokeDash: "10 6",
+    };
+  }
+
+  return { bg: BUS_RED, labelText: "#FFFFFF", iconFill: BUS_RED, iconStroke: BUS_COLOR };
 }
 
 function hasAnyBusCategoryToken() {
   return (
     selectedLines.has(BUS_RED_TOKEN) ||
     selectedLines.has(BUS_BLUE_TOKEN) ||
-    selectedLines.has(BUS_REPL_TOKEN)
+    selectedLines.has(BUS_REPL_TOKEN) ||
+    selectedLines.has(BUS_NEAR_TOKEN)
   );
 }
 
+function boatCategoryTokenFromDesc(desc) {
+  const d = normalizeDesc(desc);
+  if (d.includes("pendelbat")) return BOAT_PENDEL_TOKEN;
+  if (d.includes("waxholmsbolaget") || d.includes("waxholm")) return BOAT_WAX_TOKEN;
+  // okänd båt -> default pendelbåt-look
+  return BOAT_PENDEL_TOKEN;
+}
+
+function boatCategoryTokenForVehicle(v) {
+  return boatCategoryTokenFromDesc(v?.desc);
+}
+
+function boatStyleForVehicle(v) {
+  const token = boatCategoryTokenForVehicle(v);
+
+  if (token === BOAT_WAX_TOKEN) {
+    const bg = `linear-gradient(90deg,${BOAT_WAX_YELLOW} 0%,${BOAT_WAX_YELLOW} 50%,${BOAT_WAX_BLUE} 50%,${BOAT_WAX_BLUE} 100%)`;
+    return {
+      bg,
+      labelText: "#0B1220",
+      iconType: "gradient",
+      iconStroke: BOAT_COLOR,
+    };
+  }
+
+  return {
+    bg: BOAT_PENDEL_BG,
+    labelText: "#0B1220",
+    iconType: "solid",
+    iconFill: BOAT_PENDEL_BG,
+    iconStroke: BOAT_COLOR,
+  };
+}
+
+function hasAnyBoatCategoryToken() {
+  return selectedLines.has(BOAT_PENDEL_TOKEN) || selectedLines.has(BOAT_WAX_TOKEN);
+}
+
+/* ============================
+   Rail colors (unchanged)
+============================ */
 function colorForRailLine(line) {
   const l = normalizeLine(line);
 
@@ -358,27 +447,55 @@ function makeRailIcon(line, bearingDeg, pop = false) {
   });
 }
 
-/* Buss-ikon: fill = kategori-färg, outline = BUS_COLOR */
-function makeBusIcon(bearingDeg, fillColor) {
+/* Buss/Boat-ikon: arrow SVG med valfri dash/gradient */
+function arrowSvg({ fill, stroke, strokeWidth = 5, dash = null, gradient = null, sizePx = 22 }) {
+  const dashAttr = dash ? `stroke-dasharray="${dash}"` : "";
+  const defs = gradient
+    ? `
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="${gradient.left}"/>
+          <stop offset="50%" stop-color="${gradient.left}"/>
+          <stop offset="50%" stop-color="${gradient.right}"/>
+          <stop offset="100%" stop-color="${gradient.right}"/>
+        </linearGradient>
+      </defs>
+    `
+    : "";
+
+  const fillAttr = gradient ? `url(#g)` : fill;
+
+  return `
+    <svg width="${sizePx}" height="${sizePx}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      ${defs}
+      <path
+        d="M10 50 L92 10 L62 50 L92 90 Z"
+        fill="${fillAttr}"
+        stroke="${stroke}"
+        stroke-width="${strokeWidth}"
+        stroke-linejoin="round"
+        ${dashAttr}
+      />
+    </svg>
+  `;
+}
+
+function makeBusIcon(bearingDeg, v) {
   const rot = Number.isFinite(bearingDeg) ? bearingDeg + 90 : 0;
   const size = 22;
 
-  const fill = fillColor || BUS_RED;
-  const stroke = BUS_COLOR;
-  const strokeWidth = 5;
+  const style = busColorStyleForVehicle(v);
 
   const html = `
     <div style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
       <div style="transform: rotate(${rot}deg); width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center;">
-        <svg width="${size}" height="${size}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M10 50 L92 10 L62 50 L92 90 Z"
-            fill="${fill}"
-            stroke="${stroke}"
-            stroke-width="${strokeWidth}"
-            stroke-linejoin="round"
-          />
-        </svg>
+        ${arrowSvg({
+          fill: style.iconFill,
+          stroke: style.iconStroke,
+          strokeWidth: 5,
+          dash: style.iconStrokeDash ?? null,
+          sizePx: size
+        })}
       </div>
     </div>
   `;
@@ -391,9 +508,61 @@ function makeBusIcon(bearingDeg, fillColor) {
   });
 }
 
+function makeBoatIcon(bearingDeg, v) {
+  const rot = Number.isFinite(bearingDeg) ? bearingDeg + 90 : 0;
+  const size = 22;
+
+  const style = boatStyleForVehicle(v);
+
+  const html = `
+    <div style="filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));">
+      <div style="transform: rotate(${rot}deg); width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center;">
+        ${
+          style.iconType === "gradient"
+            ? arrowSvg({
+                fill: BOAT_WAX_BLUE,
+                stroke: style.iconStroke ?? BOAT_COLOR,
+                strokeWidth: 5,
+                gradient: { left: BOAT_WAX_YELLOW, right: BOAT_WAX_BLUE },
+                sizePx: size,
+              })
+            : arrowSvg({
+                fill: style.iconFill ?? BOAT_PENDEL_BG,
+                stroke: style.iconStroke ?? BOAT_COLOR,
+                strokeWidth: 5,
+                sizePx: size,
+              })
+        }
+      </div>
+    </div>
+  `;
+
+  return L.divIcon({
+    className: "boatIconWrap",
+    html,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
 function makeLabelIcon(v, labelText, speedKmh, pinned = false) {
-  const bg = v.type === 700 ? busColorForLine(v.line) : colorForRailLine(v.line);
   const text = `${labelText}${fmtSpeed(speedKmh)}`;
+
+  let bg = colorForRailLine(v.line);
+  let textColor = "#fff";
+  let border = "1px solid rgba(0,0,0,0.25)";
+
+  if (v.type === 700) {
+    const st = busColorStyleForVehicle(v);
+    bg = st.bg;
+    textColor = st.labelText ?? "#fff";
+    border = st.labelBorder ?? border;
+  } else if (v.type === 1000) {
+    const st = boatStyleForVehicle(v);
+    bg = st.bg;
+    textColor = st.labelText ?? "#fff";
+    border = "1px solid rgba(0,0,0,0.25)";
+  }
 
   const cls = pinned
     ? "trainLabel trainLabelPos trainLabelPinned"
@@ -402,7 +571,7 @@ function makeLabelIcon(v, labelText, speedKmh, pinned = false) {
   return L.divIcon({
     className: "trainLabelWrap",
     html: `
-      <div class="${cls}" style="background:${bg};">
+      <div class="${cls}" style="background:${bg}; color:${textColor}; border:${border};">
         ${text}
       </div>
     `,
@@ -411,7 +580,7 @@ function makeLabelIcon(v, labelText, speedKmh, pinned = false) {
 }
 
 /* ----------------------------
-   enrich: line + headsign + type
+   enrich: line + headsign + type + desc
 ----------------------------- */
 function enrich(v) {
   if (!v?.tripId) return null;
@@ -423,6 +592,7 @@ function enrich(v) {
     line: info.line,
     headsign: info.headsign ?? null,
     type: info.type ?? null,
+    desc: info.desc ?? null,
   };
 }
 
@@ -430,7 +600,7 @@ function enrich(v) {
    FILTER + CHIP UI
 ========================================================= */
 
-const LS_KEY = "sl_live.selectedLines.v6";
+const LS_KEY = "sl_live.selectedLines.v7";
 
 let selectedLines = loadSelectedLines();
 
@@ -462,6 +632,9 @@ const MODE_DEFS = [
 
   // Buss (undermeny)
   { key: "bus", label: "Buss", chipBg: BUS_COLOR, lines: null },
+
+  // Båt (undermeny)
+  { key: "boat", label: "Båt", chipBg: BOAT_COLOR, lines: null },
 ];
 
 function loadSelectedLines() {
@@ -506,8 +679,11 @@ function isLineSelected(line) {
  * - non-empty:
  *    - spår: line i set
  *    - buss:
- *         om buss-kategorier valda -> matcha token
- *         annars -> line i set (sök “4” => bara buss 4)
+ *         om buss-kategorier valda -> matcha token via desc
+ *         annars -> line i set
+ *    - båt:
+ *         om båt-kategorier valda -> matcha token via desc
+ *         annars -> line i set
  */
 function passesFilter(v) {
   if (isShowNone()) return false;
@@ -517,7 +693,15 @@ function passesFilter(v) {
 
   if (v.type === 700) {
     if (hasAnyBusCategoryToken()) {
-      const cat = busCategoryTokenForLine(l);
+      const cat = busCategoryTokenForVehicle(v);
+      return selectedLines.has(cat);
+    }
+    return selectedLines.has(l);
+  }
+
+  if (v.type === 1000) {
+    if (hasAnyBoatCategoryToken()) {
+      const cat = boatCategoryTokenForVehicle(v);
       return selectedLines.has(cat);
     }
     return selectedLines.has(l);
@@ -548,6 +732,24 @@ function toggleRailLineSelection(line) {
 }
 
 function toggleBusCategoryToken(token) {
+  if (selectedLines.size === 0 || isShowNone()) {
+    selectedLines = new Set([token]);
+    saveSelectedLines();
+    return;
+  }
+
+  if (selectedLines.has(token)) selectedLines.delete(token);
+  else selectedLines.add(token);
+
+  if (selectedLines.size === 0) {
+    setShowNone();
+    return;
+  }
+
+  saveSelectedLines();
+}
+
+function toggleBoatCategoryToken(token) {
   if (selectedLines.size === 0 || isShowNone()) {
     selectedLines = new Set([token]);
     saveSelectedLines();
@@ -717,6 +919,12 @@ function ensureChipStylesOnce() {
       box-shadow: 0 6px 14px rgba(0,0,0,0.12);
       text-shadow:none;
     }
+
+    .uiChipFace.is-near{
+      color: ${BUS_NEAR_STROKE} !important;
+      border: 2px dashed ${BUS_NEAR_STROKE};
+      text-shadow: none !important;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -748,11 +956,11 @@ function ensureChipDock() {
   renderTopRow();
 }
 
-function makeChipButton({ label, bg, onClick, classes = [] }) {
+function makeChipButton({ label, bg, onClick, classes = [], faceClass = "" }) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = ["uiChipBtn", ...classes].join(" ");
-  btn.innerHTML = `<div class="uiChipFace" style="background:${bg};">${label}</div>`;
+  btn.innerHTML = `<div class="uiChipFace ${faceClass}" style="background:${bg};">${label}</div>`;
   btn.addEventListener("click", onClick);
   return btn;
 }
@@ -850,16 +1058,14 @@ function renderTopRow() {
 function updateModeChipInactiveStates() {
   for (const btn of rowEl.querySelectorAll("button[data-mode]")) {
     const key = btn.dataset.mode;
+
     if (key === "bus") {
-      // Aktivt om vi visar allt, eller om någon busskategori är vald,
-      // eller om vi filtrerar via en specifik busslinje.
       let active = true;
       if (isShowNone()) active = false;
       else if (selectedLines.size === 0) active = true;
       else {
         active = hasAnyBusCategoryToken();
         if (!active) {
-          // om användaren valt någon linje (kan vara buss-linje)
           for (const x of selectedLines) {
             if (x !== "__NONE__") {
               active = true;
@@ -870,6 +1076,26 @@ function updateModeChipInactiveStates() {
       }
       btn.classList.toggle("is-inactive", !active);
       btn.classList.toggle("is-activeMode", subPanelModeKey === "bus");
+      continue;
+    }
+
+    if (key === "boat") {
+      let active = true;
+      if (isShowNone()) active = false;
+      else if (selectedLines.size === 0) active = true;
+      else {
+        active = hasAnyBoatCategoryToken();
+        if (!active) {
+          for (const x of selectedLines) {
+            if (x !== "__NONE__") {
+              active = true;
+              break;
+            }
+          }
+        }
+      }
+      btn.classList.toggle("is-inactive", !active);
+      btn.classList.toggle("is-activeMode", subPanelModeKey === "boat");
       continue;
     }
 
@@ -937,18 +1163,54 @@ function renderSubchips() {
   // Buss undermeny
   if (subPanelModeKey === "bus") {
     const defs = [
-      { label: "Röd", token: BUS_RED_TOKEN, bg: BUS_RED },
-      { label: "Blå", token: BUS_BLUE_TOKEN, bg: BUS_BLUE },
-      { label: "Ersättning", token: BUS_REPL_TOKEN, bg: BUS_REPL },
+      { label: "Röd", token: BUS_RED_TOKEN, bg: BUS_RED, faceClass: "" },
+      { label: "Blå", token: BUS_BLUE_TOKEN, bg: BUS_BLUE, faceClass: "" },
+      { label: "Ersättning", token: BUS_REPL_TOKEN, bg: BUS_REPL, faceClass: "" },
+      { label: "Närtrafiken", token: BUS_NEAR_TOKEN, bg: BUS_NEAR_BG, faceClass: "is-near" },
     ];
 
     for (const d of defs) {
       const btn = makeChipButton({
         label: d.label,
         bg: d.bg,
+        faceClass: d.faceClass,
         onClick: (e) => {
           e.stopPropagation();
           toggleBusCategoryToken(d.token);
+          renderSubchips();
+          updateModeChipInactiveStates();
+          refreshLive().catch(console.error);
+        },
+      });
+
+      btn.classList.toggle("is-unselected", !selectedLines.has(d.token));
+      subPanelEl.appendChild(btn);
+    }
+
+    updateModeChipInactiveStates();
+    return;
+  }
+
+  // Båt undermeny
+  if (subPanelModeKey === "boat") {
+    const defs = [
+      { label: "Pendelbåt", token: BOAT_PENDEL_TOKEN, bg: BOAT_PENDEL_BG, faceClass: "" },
+      {
+        label: "Waxholmsbolaget",
+        token: BOAT_WAX_TOKEN,
+        bg: `linear-gradient(90deg,${BOAT_WAX_YELLOW} 0%,${BOAT_WAX_YELLOW} 50%,${BOAT_WAX_BLUE} 50%,${BOAT_WAX_BLUE} 100%)`,
+        faceClass: "",
+      },
+    ];
+
+    for (const d of defs) {
+      const btn = makeChipButton({
+        label: d.label,
+        bg: d.bg,
+        faceClass: d.faceClass,
+        onClick: (e) => {
+          e.stopPropagation();
+          toggleBoatCategoryToken(d.token);
           renderSubchips();
           updateModeChipInactiveStates();
           refreshLive().catch(console.error);
@@ -1083,8 +1345,10 @@ function upsertVehicle(v) {
   if (!markers.has(v.id)) {
     const icon =
       v.type === 700
-        ? makeBusIcon(hasBearingNow ? bearing : NaN, busColorForLine(v.line))
-        : makeRailIcon(v.line, hasBearingNow ? bearing : NaN, false);
+        ? makeBusIcon(hasBearingNow ? bearing : NaN, v)
+        : v.type === 1000
+          ? makeBoatIcon(hasBearingNow ? bearing : NaN, v)
+          : makeRailIcon(v.line, hasBearingNow ? bearing : NaN, false);
 
     const group = L.layerGroup();
     const arrowMarker = L.marker(pos, {
@@ -1132,9 +1396,9 @@ function upsertVehicle(v) {
     m.hasBearing = hasBearingNow;
 
     if (v.type === 700) {
-      m.arrowMarker.setIcon(
-        makeBusIcon(hasBearingNow ? bearing : NaN, busColorForLine(v.line))
-      );
+      m.arrowMarker.setIcon(makeBusIcon(hasBearingNow ? bearing : NaN, v));
+    } else if (v.type === 1000) {
+      m.arrowMarker.setIcon(makeBoatIcon(hasBearingNow ? bearing : NaN, v));
     } else {
       m.arrowMarker.setIcon(makeRailIcon(v.line, hasBearingNow ? bearing : NaN, pop));
     }
