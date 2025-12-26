@@ -1096,7 +1096,7 @@ function renderTopRow() {
   };
 
   searchInputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") runSearch();
+    if (e.= "Enter") runSearch();
   });
   searchBtnEl.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -1115,45 +1115,23 @@ function updateModeChipInactiveStates() {
     const key = btn.dataset.mode;
 
     if (key === "bus") {
-      let active = true;
-      if (isShowNone()) active = false;
-      else if (selectedLines.size === 0) active = true;
-      else {
-        active = hasAnyBusCategoryToken();
-        if (!active) {
-          for (const x of selectedLines) {
-            if (x !== "__NONE__") {
-              active = true;
-              break;
-            }
-          }
-        }
-      }
+  // Huvudchip Buss ska bara lysa om minst ett buss-underchip är valt
+      const active = !isShowNone() && hasAnyBusCategoryToken();
+
       btn.classList.toggle("is-inactive", !active);
       btn.classList.toggle("is-activeMode", subPanelModeKey === "bus");
       continue;
     }
 
     if (key === "boat") {
-      let active = true;
-      if (isShowNone()) active = false;
-      else if (selectedLines.size === 0) active = true;
-      else {
-        active = hasAnyBoatCategoryToken();
-        if (!active) {
-          for (const x of selectedLines) {
-            if (x !== "__NONE__") {
-              active = true;
-              break;
-            }
-          }
-        }
-      }
+  // Huvudchip Färja ska bara lysa om minst ett båt-underchip är valt
+      const active = !isShowNone() && hasAnyBoatCategoryToken();
+
       btn.classList.toggle("is-inactive", !active);
       btn.classList.toggle("is-activeMode", subPanelModeKey === "boat");
       continue;
     }
-
+    
     const def = MODE_DEFS.find((d) => d.key === key);
     if (!def?.lines) continue;
 
