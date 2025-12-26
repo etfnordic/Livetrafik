@@ -1,4 +1,3 @@
-
 import { TRIP_TO_LINE } from "./data/trip_to_line.js";
 
 const API_URL = "https://metro.etfnordic.workers.dev";
@@ -326,6 +325,35 @@ function boatStyleForVehicle(v) {
 
 function hasAnyBoatCategoryToken() {
   return selectedLines.has(BOAT_PENDEL_TOKEN) || selectedLines.has(BOAT_WAX_TOKEN);
+}
+
+/* ============================
+   Visible-category helpers (NEW)
+============================ */
+
+function getVisibleBusCategoryTokens() {
+  const s = new Set();
+  for (const m of markers.values()) {
+    const v = m?.lastV;
+    if (v?.type === 700) s.add(busCategoryTokenForVehicle(v));
+  }
+  return s;
+}
+
+function getVisibleBoatCategoryTokens() {
+  const s = new Set();
+  for (const m of markers.values()) {
+    const v = m?.lastV;
+    if (v?.type === 1000) s.add(boatCategoryTokenForVehicle(v));
+  }
+  return s;
+}
+
+function hasAnyVisibleType(type) {
+  for (const m of markers.values()) {
+    if (m?.lastV?.type === type) return true;
+  }
+  return false;
 }
 
 /* ============================
@@ -1115,23 +1143,23 @@ function updateModeChipInactiveStates() {
     const key = btn.dataset.mode;
 
     if (key === "bus") {
-  // Huvudchip Buss ska bara lysa om minst ett buss-underchip är valt
-  const active = !isShowNone() && hasAnyBusCategoryToken();
+      // Aktiv om: inte Rensa + (tokens valda ELLER bussar syns på kartan)
+      const active = !isShowNone() && (hasAnyBusCategoryToken() || hasAnyVisibleType(700));
 
-  btn.classList.toggle("is-inactive", !active);
-  btn.classList.toggle("is-activeMode", subPanelModeKey === "bus");
-  continue;
-}
+      btn.classList.toggle("is-inactive", !active);
+      btn.classList.toggle("is-activeMode", subPanelModeKey === "bus");
+      continue;
+    }
 
-if (key === "boat") {
-  // Huvudchip Färja ska bara lysa om minst ett båt-underchip är valt
-  const active = !isShowNone() && hasAnyBoatCategoryToken();
+    if (key === "boat") {
+      // Aktiv om: inte Rensa + (tokens valda ELLER båtar syns på kartan)
+      const active = !isShowNone() && (hasAnyBoatCategoryToken() || hasAnyVisibleType(1000));
 
-  btn.classList.toggle("is-inactive", !active);
-  btn.classList.toggle("is-activeMode", subPanelModeKey === "boat");
-  continue;
-}
-    
+      btn.classList.toggle("is-inactive", !active);
+      btn.classList.toggle("is-activeMode", subPanelModeKey === "boat");
+      continue;
+    }
+
     const def = MODE_DEFS.find((d) => d.key === key);
     if (!def?.lines) continue;
 
@@ -1202,6 +1230,8 @@ function renderSubchips() {
       { label: "Närtrafiken", token: BUS_NEAR_TOKEN, bg: BUS_NEAR_BG, faceClass: "is-near" },
     ];
 
+    const visibleBusCats = getVisibleBusCategoryTokens();
+
     for (const d of defs) {
       const btn = makeChipButton({
         label: d.label,
@@ -1216,7 +1246,10 @@ function renderSubchips() {
         },
       });
 
-      btn.classList.toggle("is-unselected", !selectedLines.has(d.token));
+      // Tänd om vald ELLER syns på kartan
+      const lit = selectedLines.has(d.token) || visibleBusCats.has(d.token);
+      btn.classList.toggle("is-unselected", !lit);
+
       subPanelEl.appendChild(btn);
     }
 
@@ -1236,6 +1269,8 @@ function renderSubchips() {
       },
     ];
 
+    const visibleBoatCats = getVisibleBoatCategoryTokens();
+
     for (const d of defs) {
       const btn = makeChipButton({
         label: d.label,
@@ -1250,7 +1285,10 @@ function renderSubchips() {
         },
       });
 
-      btn.classList.toggle("is-unselected", !selectedLines.has(d.token));
+      // Tänd om vald ELLER syns på kartan
+      const lit = selectedLines.has(d.token) || visibleBoatCats.has(d.token);
+      btn.classList.toggle("is-unselected", !lit);
+
       subPanelEl.appendChild(btn);
     }
 
